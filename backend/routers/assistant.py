@@ -11,6 +11,7 @@ from lib import finance
 from lib.assistant_usage import record_usage
 from lib.auth import get_current_user
 from lib.budget_guard import check_budget
+from lib.circuit_breaker import get_circuit_breaker
 from lib.db import db
 from models.finance import AssistantMessage, ChatRequest
 
@@ -87,6 +88,21 @@ async def chat(input: ChatRequest, user: dict = Depends(get_current_user)):
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
+    # Phase 3 circuit breaker — runs after the budget gate (a budget denial
+    # never touches circuit state) and before any context build, message
+    # write, or LLM call.
+    breaker = get_circuit_breaker()
+    if not await breaker.allow_request():
+        async def circuit_open_stream():
+            yield f"data: {json.dumps({'error': 'Asistan sağlayıcısı şu anda geçici olarak kullanılamıyor. Lütfen birkaç dakika sonra tekrar dene.'}, ensure_ascii=False)}\n\n"
+            yield "data: {\"done\": true}\n\n"
+
+        return StreamingResponse(
+            circuit_open_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
     from emergentintegrations.llm.chat import LlmChat, StreamDone, TextDelta, UserMessage
 
     context = await _build_context(user_id)
@@ -115,6 +131,13 @@ async def chat(input: ChatRequest, user: dict = Depends(get_current_user)):
             failed = True
             logger.exception("assistant stream failed")
             yield f"data: {json.dumps({'error': 'Asistan şu anda yanıt veremiyor: ' + str(exc)[:120]}, ensure_ascii=False)}\n\n"
+        # Phase 3 circuit breaker — only this try/except's boundary counts as a
+        # provider/LLM failure; nothing before it (auth, budget, breaker gate
+        # itself) or after it (message write, usage logging) can reach here.
+        if failed:
+            await breaker.record_failure()
+        else:
+            await breaker.record_success()
         content = "".join(chunks).strip()
         if content:
             await db.assistant_messages.insert_one({"id": str(uuid.uuid4()), "user_id": user_id, "role": "assistant", "content": content, "created_at": datetime.now(timezone.utc).isoformat()})
