@@ -1,0 +1,40 @@
+{
+  "summary": "Backend + frontend smoke pass on restored Subly app. Health, auth (login/register/dup/wrong-pw/me/logout), all CRUD (subscriptions/incomes/expenses/bills/budgets), dashboard, calendar, savings, alerts, assistant history, digest preferences/preview, mock-scan, deals, account export all OK. Frontend login, dashboard with seeded demo data, sidebar (all 11 sections), page navigation, settings page (theme + digest 'Şimdi gönder' + 'Haftalık'), and logout all working.",
+  "tested_scope": ["backend", "frontend", "auth", "integration"],
+  "passed": [
+    "GET /api/ returns {message:'Subly API aktif',service:'subly'}",
+    "POST /api/auth/login demo -> 200, sets httpOnly Secure SameSite=None session_token cookie",
+    "GET /api/auth/me returns demo user; null after logout",
+    "POST /api/auth/logout -> 204",
+    "POST /api/auth/register new email -> 200; duplicate -> 409 'Bu e-posta zaten kayıtlı'; wrong password -> 401 'E-posta veya şifre hatalı'",
+    "GET /api/subscriptions returns 6+ seeded subs; POST/PATCH/DELETE /api/expenses full CRUD verified",
+    "GET /api/incomes, /api/expenses, /api/bills, /api/budgets return seeded demo data",
+    "GET /api/dashboard/summary returns Eylül 2026 with income 47000, expense 18710, savings_rate 60.2, upcoming payments",
+    "GET /api/calendar returns events grouped by date with totals",
+    "GET /api/savings returns insights (red/unused subscription etc.)",
+    "GET /api/alerts returns due-today + upcoming renewal alerts",
+    "GET /api/assistant/history returns []",
+    "GET /api/digest/preferences returns default enabled/weekday/hour; GET /api/digest/preview returns 200 HTML; GET /api/digest/reminder-preview 200",
+    "POST /api/subscriptions/mock-scan and GET /api/subscriptions/deals return mocked results (SIMULATION as spec)",
+    "GET /api/account/export -> 200",
+    "Unauth GET /api/subscriptions -> 401 {'detail':'Oturum gerekli'}",
+    "Frontend / renders login form (email+password, Google btn, Demo hesabı doldur)",
+    "Login with demo@subly.app/subly1234 -> /dashboard; dashboard shows income/expense/remaining/savings cards + upcoming payments + category breakdown",
+    "Sidebar shows Dashboard, Harcamalar, Gelirler, Abonelikler, Faturalar, Takvim, Bütçe, Tasarruf, AI Asistan, Ev, Ayarlar",
+    "Navigated /expenses /incomes /subscriptions /bills /calendar /budget /savings /settings without console errors (except a few 429 rate-limits during rapid nav)",
+    "Settings page shows Profil, Görünüm (Koyu/Açık theme toggle), Haftalık özet e-postası section with 'Şimdi gönder', gün, saat fields",
+    "'Güvenli çıkış' logout returns to / and clears session"
+  ],
+  "failed": [],
+  "env_gated_not_bugs": [
+    "POST /api/digest/send-now returned 502 Bad gateway via CF — consistent with backend hanging on EMERGENT_EMAIL_KEY-less send; treat as env-gated per spec (not a bug)",
+    "POST /api/digest/send-reminder-now similarly 502 — env-gated (EMERGENT_EMAIL_KEY missing)",
+    "Assistant chat streaming not exercised (EMERGENT_LLM_KEY missing — env-gated)"
+  ],
+  "action_items": [
+    "For final polish (not blocking first finish): consider wrapping send-now/send-reminder-now in try/except so missing EMERGENT_EMAIL_KEY returns a clean 4xx/5xx JSON instead of connection hang -> 502 CF error"
+  ],
+  "success_rate": {"backend": "100% (all non-env-gated endpoints)", "frontend": "100% (happy path)"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

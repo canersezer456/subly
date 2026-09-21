@@ -1,0 +1,16 @@
+{
+  "name": "Subly — Abonelik Kontrol Merkezi",
+  "short_name": "Subly",
+  "description": "Aboneliklerini, yenilemelerini ve fırsatları tek yerden yönet.",
+  "lang": "tr",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#101827",
+  "theme_color": "#34d399",
+  "categories": ["finance", "productivity", "shopping"],
+  "icons": [
+    { "src": "/subly-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

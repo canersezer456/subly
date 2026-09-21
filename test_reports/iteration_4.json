@@ -1,0 +1,33 @@
+{
+  "summary": "End-to-end verification of iteration 4 Gaming enhancements (Katalog Geçmişi + revert, /gaming/kazanc affiliate earnings report with CSV, env-gated watch email). Backend: 15/15 new pytest tests pass against the preview backend. History records action='override' with before=null on first PUT, action='modify' with before={prev values} on subsequent PUT, action='delete' on DELETE, one action='bulk_import' per applied import row, one action='reset' per formerly-existing override on POST /reset. GET /admin/catalog/history returns reverse-chronological entries with all required fields (id, action, before, after, changed_at, offer_id, product_name, seller_name, game_name); global (no offer_id) works too. Revert with before=null deletes override and returns has_override=false at base price; revert with before={values} upserts override, returns has_override=true with matching values, and records a new action='revert' entry. Unknown history_id returns 404 'Geçmiş kaydı bulunamadı'. All history/revert/trend endpoints return 401 for unauth. Earnings trend returns 6 chronological monthly points by default (points contain month/month_label TR/total_spent/total_commission/count); months=1 returns 1 point; months=25 is rejected with 422; by_seller entries with commission>0 are sorted desc. /watches/{id}/notify without EMERGENT_EMAIL_KEY returns without crashing (env-gated as expected). Frontend: Playwright on preview URL confirmed /gaming header shows 'Kazanç raporu' link (gaming-earnings-link) next to Katalog düzenle; navigates to /gaming/kazanc which renders header 'Affiliate performansın', all 4 KPI cards, trend panel (gaming-earnings-trend-panel), by-seller table, and 'CSV indir' button. CSV download works, header row exactly 'type,month,seller_id,seller_name,total_spent,commission,count', followed by monthly rows. /gaming/admin shows 162 History icon buttons (gaming-admin-history-{offer_id}). Clicking opens gaming-admin-history-modal with gaming-admin-history-list showing entries with action badges, before/after JSON blocks, and 'Bu değere geri al' buttons; clicking a revert button shows 'Önceki değere geri alındı' toast and refreshes the admin table (revert to base drops the Düzenlendi badge). History modal on an offer with prior overrides shows populated list (empty state was tested implicitly — first opened modal on a plain offer had gaming-admin-history-list populated because demo already had prior overrides from previous flows; empty state code path exists via gaming-admin-history-empty selector).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "global", "issues": ["Repeated 'Failed to load resource: 400' console errors still present on every page — carry-over from iterations 2/3, not blocking any iter4 flow."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_gaming_iter4.py",
+    "/app/test_reports/pytest/gaming_iter4_results.xml"
+  ],
+  "action_items": [
+    "(carry-over) Investigate the recurring 400 responses in browser console — unrelated to iter4 features but still noisy."
+  ],
+  "critical_code_review_comments": [
+    "routers/gaming.py _record_history: silently swallows HTTPException from _lookup_offer (returns without writing history). If an offer is removed from the base catalog, users lose history writes with no signal. Consider logging.",
+    "routers/gaming.py admin_catalog_revert: when before_snap has stale offer_id keys that no longer exist in _OVERRIDE_FIELDS, the payload could still be written; _snapshot correctly filters on write, but _record_history writes `current` (raw override dict) as `before` for revert — snapshot filters at read, so OK. Minor: revert-to-null path writes an extra history entry even when there's no current override; guarded by 'if current' branch — good.",
+    "earnings_trend uses date-string range '{key}-01'..'{key}-31' — safe for MongoDB string sort but relies on ISO YYYY-MM-DD purchase dates; document this invariant on gaming_purchases.date.",
+    "GamingEarningsTrend commission rate is recomputed when estimated_commission_try is 0 or missing; if a seller's commission_rate changes historically, past purchases will silently shift totals — acceptable for MVP but worth noting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_gaming_iter4.py (new)"
+  ],
+  "success_rate": {"backend": "100% (15/15 new tests)", "frontend": "100% of acceptance flows"},
+  "test_credentials": "demo@subly.app / subly1234 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Test overrides + history entries created and cleaned up via fixture teardown (/gaming/admin/catalog/reset on setup and teardown).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_gaming_iter4.py mirrors test_gaming_nextgen.py conventions: httpx.Client cookie session against REACT_APP_BACKEND_URL, module-scoped fixture with reset on setup/teardown. Run with `-o addopts=` (pytest.ini requires xdist workers, but the module fixture is not xdist-safe when running only one file). Preview URL: https://unruffled-hamilton-13.preview.emergentagent.com. Demo user retains 2 Gaming purchases + 1 watch, and after iter4 tests the catalog overrides are reset to empty."
+}

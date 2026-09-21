@@ -1,0 +1,167 @@
+{
+  "app_name": "Subly",
+  "archetype": "ARCHETYPE 2 & 4 HYBRID: Modern Financial Precision Slate & Emerald Glow",
+  "theme": "Dark Mode Dominant (with crisp high-contrast surfaces & vibrant financial indicators)",
+  "design_context": "Personal Finance SaaS & Subscription Management Command Center",
+  "typography": {
+    "heading_font": "Plus Jakarta Sans, Outfit, sans-serif",
+    "body_font": "Geist Variable, Inter, sans-serif",
+    "mono_font": "IBM Plex Mono, JetBrains Mono, monospace",
+    "scale": {
+      "h1_hero": "text-4xl sm:text-5xl font-extrabold tracking-tight leading-tight",
+      "h2_section": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3_card_title": "text-lg sm:text-xl font-semibold tracking-tight",
+      "body_base": "text-sm sm:text-base font-normal leading-relaxed text-slate-300",
+      "label_tiny": "text-xs font-mono uppercase tracking-widest text-slate-400 text-muted-foreground",
+      "financial_num_large": "text-3xl sm:text-4xl font-mono font-bold tracking-tight text-white",
+      "financial_num_medium": "text-xl sm:text-2xl font-mono font-bold tracking-tight text-emerald-400"
+    }
+  },
+  "colors": {
+    "background_main": "#0B0F19",
+    "background_secondary": "#111827",
+    "surface_card": "#1E293B",
+    "surface_card_hover": "#334155",
+    "surface_glass": "rgba(30, 41, 59, 0.75)",
+    "border_subtle": "rgba(255, 255, 255, 0.08)",
+    "border_highlight": "rgba(16, 185, 129, 0.3)",
+    "primary_emerald": "#10B981",
+    "primary_emerald_glow": "rgba(16, 185, 129, 0.2)",
+    "accent_cyan": "#06B6D4",
+    "accent_indigo": "#6366F1",
+    "warning_amber": "#F59E0B",
+    "destructive_rose": "#EF4444",
+    "mocked_badge_bg": "rgba(139, 92, 246, 0.15)",
+    "mocked_badge_border": "rgba(139, 92, 246, 0.4)",
+    "mocked_badge_text": "#C084FC"
+  },
+  "layout_and_spacing": {
+    "bento_grid_mode": "MODE B: High Density Dashboard Grid",
+    "container_max_width": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "grid_gap": "gap-4 sm:gap-6",
+    "card_padding": "p-5 sm:p-6",
+    "section_margin": "mb-8 sm:mb-10",
+    "radius": "rounded-xl",
+    "border_rule": "Every card must use a crisp 1px border (border-white/10) with subtle ambient glow on hover"
+  },
+  "navigation_spec": {
+    "type": "Sticky Top Header with Glassmorphism",
+    "classes": "sticky top-0 z-50 backdrop-blur-xl bg-[#0B0F19]/80 border-b border-white/10 px-4 lg:px-8 py-3.5",
+    "elements": [
+      "Brand logo (Subly) with glowing emerald dot",
+      "Navigation Tabs: Dashboard, Aboneliklerim (Subscriptions), Banka/Kart Taraması (Mock Scan), İndirim & Fırsatlar (Deals), Analizler (Analytics)",
+      "Currency selector dropdown (₺ TRY / $ USD / € EUR)",
+      "Demo Scan Action button with MOCKED status pulse indicator",
+      "User Profile menu / Quick logout button"
+    ]
+  },
+  "component_specs": {
+    "auth_view": {
+      "path": "src/components/auth/AuthModal.js",
+      "description": "Tabbed Auth dialog supporting Email/Password sign up, login, and Google OAuth callback flow mock.",
+      "features": [
+        "One-click 'Fill Demo Credentials' button for quick evaluator testing",
+        "Google Sign-In button triggering simulated OAuth popup / callback state",
+        "Clean input fields with explicit hover/focus high-contrast states"
+      ]
+    },
+    "dashboard_kpi_cards": {
+      "path": "src/components/dashboard/KpiOverview.js",
+      "cards": [
+        {
+          "title": "Aylık Toplam Harcama (Monthly Spend)",
+          "value": "₺1,480.00",
+          "trend": "+4.2% geçen aya göre",
+          "color": "emerald"
+        },
+        {
+          "title": "Yıllık Tahmini Maliyet (Yearly Projection)",
+          "value": "₺17,760.00",
+          "badge": "12 Aktif Servis",
+          "color": "indigo"
+        },
+        {
+          "title": "Yıllık Tasarruf Potansiyeli (Savings Deals)",
+          "value": "₺3,450.00",
+          "badge": "3 Fırsat Bulundu",
+          "color": "amber"
+        },
+        {
+          "title": "Yaklaşan Ödemeler (Next 7 Days)",
+          "value": "₺289.90",
+          "subtitle": "Netflix, Spotify, Prime",
+          "color": "cyan"
+        }
+      ]
+    },
+    "mocked_bank_scan": {
+      "path": "src/components/bank/MockTransactionScan.js",
+      "critical_requirement": "MUST feature a prominent, non-alarming 'MOCKED / SIMÜLASYON' badge explaining data is local demo simulation.",
+      "features": [
+        "Interactive 'Banka Hareketlerini Tara' trigger button",
+        "Scanning progress state with glowing radar line animation",
+        "Discovered subscription suggestions (e.g. Amazon Prime ₺39/mo, YouTube Premium ₺57.99/mo, ChatGPT Plus $20/mo)",
+        "One-click 'Aboneliklerime Ekle' action for auto-detected items"
+      ]
+    },
+    "subscription_table_list": {
+      "path": "src/components/subscriptions/SubscriptionList.js",
+      "features": [
+        "Filter by category (Eğlence, Müzik, İş/Yazılım, Bulut Depolama, Oyun, Spor)",
+        "Search bar with live filtering",
+        "Sorting by price, name, renewal date, payment method",
+        "Status badge (Aktif, İptal Ediliyor, İptal Edildi, Yenilenecek)",
+        "One-Click Cancel Button (Tek Tuşla İptal) opening provider's direct cancellation page in new tab",
+        "Direct CRUD: Add Subscription modal, Edit modal, Delete with confirmation dialog"
+      ]
+    },
+    "one_click_cancel_modal": {
+      "path": "src/components/subscriptions/CancelGuideModal.js",
+      "features": [
+        "Displays direct cancellation URL for chosen service (e.g. netflix.com/youraccount, youtube.com/paid_memberships)",
+        "Step-by-step cancellation instructions tailored to Turkish users",
+        "Quick action button: 'İptal Sayfasını Aç' (opens in new tab)",
+        "Quick status update button: 'Aboneliğimi İptal Edildi Olarak İşaretle'"
+      ]
+    },
+    "discount_deals": {
+      "path": "src/components/deals/DealsHub.js",
+      "features": [
+        "Seeded promotion cards (Öğrenci İndirimleri, Yıllık Ödeme Avantajları, Aile Paketi Geçişleri)",
+        "Calculated monthly savings indicator",
+        "Claim/Switch plan step-by-step guide"
+      ]
+    }
+  },
+  "tested_image_assets": {
+    "dashboard_preview_bg": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "mobile_app_demo": "https://images.unsplash.com/photo-1771922748624-b205cf5d002d?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "provider_logos": {
+      "netflix": "https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2016.ico",
+      "spotify": "https://open.spotifycdn.com/cdn/images/favicon.0f31d2ea.ico",
+      "youtube": "https://www.youtube.com/s/desktop/f5af060d/img/favicon.ico",
+      "amazon_prime": "https://www.amazon.com/favicon.ico"
+    }
+  },
+  "testing_attributes": {
+    "login_submit": "data-testid=\"login-submit-button\"",
+    "google_login": "data-testid=\"google-login-button\"",
+    "demo_login_fill": "data-testid=\"demo-credentials-fill-button\"",
+    "add_subscription_btn": "data-testid=\"add-subscription-button\"",
+    "subscription_row": "data-testid=\"subscription-item\"",
+    "cancel_subscription_btn": "data-testid=\"one-click-cancel-button\"",
+    "mock_bank_scan_btn": "data-testid=\"trigger-mock-bank-scan-button\"",
+    "mocked_data_banner": "data-testid=\"mocked-data-indicator-banner\"",
+    "filter_category_select": "data-testid=\"filter-category-select\"",
+    "search_input": "data-testid=\"subscription-search-input\"",
+    "deals_tab": "data-testid=\"nav-deals-tab\""
+  },
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You MUST NOT apply universal transitions like transition: all. Always target specific properties (opacity, transform, color, background-color).",
+    "Do NOT center align main text containers; preserve natural left-aligned reading hierarchy.",
+    "Every card container MUST have internal padding (p-5 or p-6) to prevent text collision with card borders.",
+    "Always ensure contrast ratio meets APCA standards over dark slate backgrounds (#0B0F19, #111827, #1E293B).",
+    "The MOCKED tag must be clear, visible, and styled as an informative purple/amber status pill without looking like a destructive system error.",
+    "Ensure standard JS component files (.js / .jsx) are used rather than .tsx."
+  ]
+}
