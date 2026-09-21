@@ -6,8 +6,8 @@ state — see routers/assistant.py's integration order (budget gate runs first
 and is untouched by circuit state) and record_failure()'s docstring.
 
 Single global breaker for the whole process: Subly's assistant has exactly
-one provider integration point (emergentintegrations -> openai/gpt-5.4), so
-one breaker instance is enough — no per-user/per-provider registry, no Redis,
+one provider integration point (the official OpenAI SDK -> gpt-5.4), so one
+breaker instance is enough — no per-user/per-provider registry, no Redis,
 no external coordination. Lazy recovery (checked on the next call), not a
 background timer, to keep this small.
 """

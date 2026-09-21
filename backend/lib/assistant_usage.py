@@ -4,13 +4,14 @@ Records an estimated token/cost snapshot per assistant call so usage is visible
 before any budget/limit enforcement exists. Logging must never break the
 assistant: `record_usage()` swallows its own errors — see its docstring.
 
-Token counts are ESTIMATED, not exact. `emergentintegrations` (routers/assistant.py)
-streams `TextDelta`/`StreamDone` events only and does not expose provider-reported
-usage in that streaming API, so there is nothing exact to read. The estimate uses a
+Token counts are ESTIMATED, not exact. The OpenAI streaming call in
+routers/assistant.py does not request `stream_options={"include_usage": True}`,
+so no provider-reported usage is read from the response. The estimate uses a
 simple chars/4 heuristic (a common rough ratio for English; Subly's Turkish text
 tends to run slightly denser per token, so treat this as directional, not
-billing-accurate). Swap `estimate_tokens` for a real tokenizer if/when exact
-provider usage becomes available.
+billing-accurate). Swap `estimate_tokens` for a real tokenizer, or read the
+real `usage` field once `include_usage` is requested, if exact accounting is
+ever needed.
 """
 
 import logging

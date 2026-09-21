@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
+from openai import AsyncOpenAI
 
 from lib import finance
 from lib.assistant_usage import record_usage
@@ -75,7 +76,7 @@ async def chat(input: ChatRequest, user: dict = Depends(get_current_user)):
 
     # Phase 2 budget gate — runs before any context build, message write, or
     # LLM call, so a denied request costs nothing beyond one usage lookup and
-    # never touches emergentintegrations.
+    # never touches the OpenAI client.
     budget = await check_budget(db.assistant_usage, user_id=user_id)
     if not budget["allowed"]:
         async def budget_denied_stream():
@@ -103,8 +104,6 @@ async def chat(input: ChatRequest, user: dict = Depends(get_current_user)):
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    from emergentintegrations.llm.chat import LlmChat, StreamDone, TextDelta, UserMessage
-
     context = await _build_context(user_id)
     previous = await db.assistant_messages.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(8)
     transcript = "\n".join(f"{'Kullanıcı' if m['role'] == 'user' else 'Asistan'}: {m['content']}" for m in reversed(previous))
@@ -115,18 +114,25 @@ async def chat(input: ChatRequest, user: dict = Depends(get_current_user)):
 
     system_message = SYSTEM_PROMPT + context
     provider, model = "openai", "gpt-5.4"
-    llm = LlmChat(api_key=os.environ["EMERGENT_LLM_KEY"], session_id=f"subly-{user_id}-{uuid.uuid4().hex[:8]}", system_message=system_message).with_model(provider, model)
+    client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     async def event_stream():
         chunks: list[str] = []
         failed = False
         try:
-            async for event in llm.stream_message(UserMessage(text=prompt)):
-                if isinstance(event, TextDelta):
-                    chunks.append(event.content)
-                    yield f"data: {json.dumps({'delta': event.content}, ensure_ascii=False)}\n\n"
-                elif isinstance(event, StreamDone):
-                    break
+            stream = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": prompt},
+                ],
+                stream=True,
+            )
+            async for chunk in stream:
+                delta = chunk.choices[0].delta.content if chunk.choices else None
+                if delta:
+                    chunks.append(delta)
+                    yield f"data: {json.dumps({'delta': delta}, ensure_ascii=False)}\n\n"
         except Exception as exc:  # surface provider failures to the UI instead of a silent hang
             failed = True
             logger.exception("assistant stream failed")

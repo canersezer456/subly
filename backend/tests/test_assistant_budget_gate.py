@@ -1,22 +1,19 @@
 """Router-level tests for the Phase 2 budget gate in routers/assistant.py.
 
 These call `chat()` directly as a plain async function — bypassing FastAPI's
-HTTP layer, dependency injection wiring, and any live server — with two fakes
+HTTP layer, dependency injection wiring, and any live server — with fakes
 swapped in for this module only:
   - a fake `db` (in-memory collections), so no real Mongo is touched.
-  - a fake `emergentintegrations.llm.chat` module injected into sys.modules
-    (only for the "under budget" test), so no network call or private
-    package install is needed.
+  - a fake `AsyncOpenAI` (the official OpenAI SDK client used by
+    routers/assistant.py), so no real network call or API key is needed.
 
-The "over budget" test deliberately does NOT install the fake
-emergentintegrations module. That is the actual proof the LLM is never
-called on that path: if routers/assistant.py's budget gate ever regressed to
-importing emergentintegrations before checking the budget, this test would
-fail with ModuleNotFoundError, since the real (private) package is not
-installed in this environment.
+The "over budget" test uses a poison-pill fake for `AsyncOpenAI` that raises
+if ever constructed — that is the actual proof the LLM is never reached on
+that path, since a real `AsyncOpenAI()` call would otherwise happen silently.
 """
 
 import json
+import types
 
 import routers.assistant as assistant_module
 from models.finance import ChatRequest
@@ -89,47 +86,39 @@ async def _fake_build_context(user_id: str) -> str:
     return "{}"
 
 
-def _install_fake_emergentintegrations(monkeypatch, reply_text: str = "test cevabı"):
-    import sys
-    import types
+class _AsyncOpenAINeverCalled:
+    """Poison pill: fails loudly if the budget-denied path ever tries to
+    construct a real OpenAI client — the actual proof the LLM is never
+    reached, not just an assumption.
+    """
 
-    class UserMessage:
-        def __init__(self, text: str):
-            self.text = text
+    def __init__(self, *args, **kwargs):
+        raise AssertionError("AsyncOpenAI must not be constructed when the budget gate denies a request")
 
-    class TextDelta:
-        def __init__(self, content: str):
-            self.content = content
 
-    class StreamDone:
-        pass
+def _install_fake_openai(monkeypatch, *, reply_text: str = "test cevabı"):
+    class _FakeStream:
+        def __aiter__(self):
+            return self._gen()
 
-    class LlmChat:
+        async def _gen(self):
+            yield types.SimpleNamespace(
+                choices=[types.SimpleNamespace(delta=types.SimpleNamespace(content=reply_text))]
+            )
+
+    class _FakeCompletions:
+        async def create(self, **kwargs):
+            return _FakeStream()
+
+    class _FakeChat:
+        def __init__(self):
+            self.completions = _FakeCompletions()
+
+    class _FakeAsyncOpenAI:
         def __init__(self, **kwargs):
-            pass
+            self.chat = _FakeChat()
 
-        def with_model(self, provider, model):
-            return self
-
-        async def stream_message(self, message):
-            yield TextDelta(content=reply_text)
-            yield StreamDone()
-
-    chat_module = types.ModuleType("emergentintegrations.llm.chat")
-    chat_module.LlmChat = LlmChat
-    chat_module.StreamDone = StreamDone
-    chat_module.TextDelta = TextDelta
-    chat_module.UserMessage = UserMessage
-
-    llm_module = types.ModuleType("emergentintegrations.llm")
-    llm_module.chat = chat_module
-
-    root_module = types.ModuleType("emergentintegrations")
-    root_module.llm = llm_module
-
-    monkeypatch.setitem(sys.modules, "emergentintegrations", root_module)
-    monkeypatch.setitem(sys.modules, "emergentintegrations.llm", llm_module)
-    monkeypatch.setitem(sys.modules, "emergentintegrations.llm.chat", chat_module)
+    monkeypatch.setattr(assistant_module, "AsyncOpenAI", _FakeAsyncOpenAI)
 
 
 async def _consume_sse(response) -> list[dict]:
@@ -146,7 +135,7 @@ async def test_assistant_denies_and_skips_llm_call_when_over_budget(monkeypatch)
     fake_db = _FakeDb()
     monkeypatch.setattr(assistant_module, "db", fake_db)
     monkeypatch.setattr(assistant_module, "check_budget", _fake_check_budget(allowed=False, usage=999, limit=100))
-    # emergentintegrations is deliberately NOT faked/installed here — see module docstring.
+    monkeypatch.setattr(assistant_module, "AsyncOpenAI", _AsyncOpenAINeverCalled)
 
     response = await assistant_module.chat(ChatRequest(message="merhaba"), user={"user_id": "user_1"})
     frames = await _consume_sse(response)
@@ -163,8 +152,8 @@ async def test_assistant_calls_llm_and_records_usage_when_under_budget(monkeypat
     monkeypatch.setattr(assistant_module, "db", fake_db)
     monkeypatch.setattr(assistant_module, "check_budget", _fake_check_budget(allowed=True, usage=10, limit=1000))
     monkeypatch.setattr(assistant_module, "_build_context", _fake_build_context)
-    monkeypatch.setenv("EMERGENT_LLM_KEY", "test-key")
-    _install_fake_emergentintegrations(monkeypatch, reply_text="test cevabı")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    _install_fake_openai(monkeypatch, reply_text="test cevabı")
 
     response = await assistant_module.chat(ChatRequest(message="merhaba"), user={"user_id": "user_1"})
     frames = await _consume_sse(response)

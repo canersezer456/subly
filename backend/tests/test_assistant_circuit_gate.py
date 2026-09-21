@@ -2,15 +2,15 @@
 
 Same approach as test_assistant_budget_gate.py: `chat()` is called directly as
 a plain async function, with fakes swapped in for `db`, `check_budget`,
-`get_circuit_breaker`, and (where needed) `emergentintegrations.llm.chat` —
-no live server, no real Mongo, no network, no real sleeping.
+`get_circuit_breaker`, and (where needed) `AsyncOpenAI` (the official OpenAI
+SDK client used by routers/assistant.py) — no live server, no real Mongo, no
+network, no real sleeping.
 
 Each test uses its own fresh CircuitBreaker instance (never the module-level
 singleton) so tests cannot leak state into each other.
 """
 
 import json
-import sys
 import types
 
 import routers.assistant as assistant_module
@@ -67,46 +67,40 @@ async def _fake_build_context(user_id: str) -> str:
     return "{}"
 
 
-def _install_fake_emergentintegrations(monkeypatch, *, reply_text: str = "test cevabı", should_fail: bool = False):
-    class UserMessage:
-        def __init__(self, text: str):
-            self.text = text
+class _AsyncOpenAINeverCalled:
+    """Poison pill: fails loudly if a gated-off path ever tries to construct
+    a real OpenAI client — the actual proof the LLM is never reached.
+    """
 
-    class TextDelta:
-        def __init__(self, content: str):
-            self.content = content
+    def __init__(self, *args, **kwargs):
+        raise AssertionError("AsyncOpenAI must not be constructed on this path")
 
-    class StreamDone:
-        pass
 
-    class LlmChat:
-        def __init__(self, **kwargs):
-            pass
+def _install_fake_openai(monkeypatch, *, reply_text: str = "test cevabı", should_fail: bool = False):
+    class _FakeStream:
+        def __aiter__(self):
+            return self._gen()
 
-        def with_model(self, provider, model):
-            return self
+        async def _gen(self):
+            yield types.SimpleNamespace(
+                choices=[types.SimpleNamespace(delta=types.SimpleNamespace(content=reply_text))]
+            )
 
-        async def stream_message(self, message):
+    class _FakeCompletions:
+        async def create(self, **kwargs):
             if should_fail:
                 raise RuntimeError("simulated provider failure")
-            yield TextDelta(content=reply_text)
-            yield StreamDone()
+            return _FakeStream()
 
-    chat_module = types.ModuleType("emergentintegrations.llm.chat")
-    chat_module.LlmChat = LlmChat
-    chat_module.StreamDone = StreamDone
-    chat_module.TextDelta = TextDelta
-    chat_module.UserMessage = UserMessage
+    class _FakeChat:
+        def __init__(self):
+            self.completions = _FakeCompletions()
 
-    llm_module = types.ModuleType("emergentintegrations.llm")
-    llm_module.chat = chat_module
+    class _FakeAsyncOpenAI:
+        def __init__(self, **kwargs):
+            self.chat = _FakeChat()
 
-    root_module = types.ModuleType("emergentintegrations")
-    root_module.llm = llm_module
-
-    monkeypatch.setitem(sys.modules, "emergentintegrations", root_module)
-    monkeypatch.setitem(sys.modules, "emergentintegrations.llm", llm_module)
-    monkeypatch.setitem(sys.modules, "emergentintegrations.llm.chat", chat_module)
+    monkeypatch.setattr(assistant_module, "AsyncOpenAI", _FakeAsyncOpenAI)
 
 
 async def _consume_sse(response) -> list[dict]:
@@ -125,17 +119,18 @@ def _setup(monkeypatch, *, budget_allowed: bool, breaker: CircuitBreaker) -> _Fa
     monkeypatch.setattr(assistant_module, "check_budget", _fake_check_budget(allowed=budget_allowed))
     monkeypatch.setattr(assistant_module, "_build_context", _fake_build_context)
     monkeypatch.setattr(assistant_module, "get_circuit_breaker", lambda: breaker)
-    monkeypatch.setenv("EMERGENT_LLM_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     return fake_db
 
 
 async def test_budget_denied_never_touches_circuit_state(monkeypatch):
     breaker = CircuitBreaker(failure_threshold=1, cooldown_seconds=100.0)
     _setup(monkeypatch, budget_allowed=False, breaker=breaker)
-    # emergentintegrations deliberately NOT installed — a budget denial must
-    # return before the breaker gate (and therefore long before the LLM
-    # import), so this would fail with ModuleNotFoundError if that ordering
-    # regressed.
+    monkeypatch.setattr(assistant_module, "AsyncOpenAI", _AsyncOpenAINeverCalled)
+    # A budget denial must return before the breaker gate (and therefore long
+    # before any LLM call) — the poison pill above proves it, not just the
+    # breaker-state assertion below (which alone can't distinguish "never
+    # touched" from "touched and happened to succeed").
 
     await assistant_module.chat(ChatRequest(message="merhaba"), user={"user_id": "user_1"})
 
@@ -147,8 +142,8 @@ async def test_circuit_open_skips_llm_call(monkeypatch):
     await breaker.record_failure()  # threshold=1 -> already OPEN
     assert breaker.state == OPEN
     fake_db = _setup(monkeypatch, budget_allowed=True, breaker=breaker)
-    # emergentintegrations deliberately NOT installed — proves the LLM is
-    # genuinely never called while the circuit is open.
+    monkeypatch.setattr(assistant_module, "AsyncOpenAI", _AsyncOpenAINeverCalled)
+    # Proves the LLM is genuinely never called while the circuit is open.
 
     response = await assistant_module.chat(ChatRequest(message="merhaba"), user={"user_id": "user_1"})
     frames = await _consume_sse(response)
@@ -163,7 +158,7 @@ async def test_circuit_open_skips_llm_call(monkeypatch):
 async def test_circuit_closed_calls_llm(monkeypatch):
     breaker = CircuitBreaker(failure_threshold=3, cooldown_seconds=100.0)
     _setup(monkeypatch, budget_allowed=True, breaker=breaker)
-    _install_fake_emergentintegrations(monkeypatch, reply_text="test cevabı")
+    _install_fake_openai(monkeypatch, reply_text="test cevabı")
 
     response = await assistant_module.chat(ChatRequest(message="merhaba"), user={"user_id": "user_1"})
     frames = await _consume_sse(response)
@@ -176,7 +171,7 @@ async def test_circuit_closed_calls_llm(monkeypatch):
 async def test_provider_failure_trips_circuit(monkeypatch):
     breaker = CircuitBreaker(failure_threshold=1, cooldown_seconds=100.0)
     _setup(monkeypatch, budget_allowed=True, breaker=breaker)
-    _install_fake_emergentintegrations(monkeypatch, should_fail=True)
+    _install_fake_openai(monkeypatch, should_fail=True)
 
     response = await assistant_module.chat(ChatRequest(message="merhaba"), user={"user_id": "user_1"})
     frames = await _consume_sse(response)
@@ -191,7 +186,7 @@ async def test_successful_provider_call_resets_failure_count(monkeypatch):
     await breaker.record_failure()
     assert breaker.state == CLOSED  # below threshold still
     _setup(monkeypatch, budget_allowed=True, breaker=breaker)
-    _install_fake_emergentintegrations(monkeypatch, reply_text="ok")
+    _install_fake_openai(monkeypatch, reply_text="ok")
 
     response = await assistant_module.chat(ChatRequest(message="merhaba"), user={"user_id": "user_1"})
     await _consume_sse(response)
@@ -207,6 +202,7 @@ async def test_successful_provider_call_resets_failure_count(monkeypatch):
 async def test_existing_phase2_behavior_intact_when_budget_denied(monkeypatch):
     breaker = CircuitBreaker(failure_threshold=1, cooldown_seconds=100.0)
     fake_db = _setup(monkeypatch, budget_allowed=False, breaker=breaker)
+    monkeypatch.setattr(assistant_module, "AsyncOpenAI", _AsyncOpenAINeverCalled)
 
     response = await assistant_module.chat(ChatRequest(message="merhaba"), user={"user_id": "user_1"})
     frames = await _consume_sse(response)
@@ -220,7 +216,7 @@ async def test_existing_phase2_behavior_intact_when_budget_denied(monkeypatch):
 async def test_phase1_usage_logging_intact_on_successful_call(monkeypatch):
     breaker = CircuitBreaker(failure_threshold=3, cooldown_seconds=100.0)
     fake_db = _setup(monkeypatch, budget_allowed=True, breaker=breaker)
-    _install_fake_emergentintegrations(monkeypatch, reply_text="test cevabı")
+    _install_fake_openai(monkeypatch, reply_text="test cevabı")
 
     response = await assistant_module.chat(ChatRequest(message="merhaba"), user={"user_id": "user_1"})
     await _consume_sse(response)
@@ -232,7 +228,7 @@ async def test_phase1_usage_logging_intact_on_successful_call(monkeypatch):
 async def test_phase1_usage_logging_records_error_on_provider_failure(monkeypatch):
     breaker = CircuitBreaker(failure_threshold=3, cooldown_seconds=100.0)
     fake_db = _setup(monkeypatch, budget_allowed=True, breaker=breaker)
-    _install_fake_emergentintegrations(monkeypatch, should_fail=True)
+    _install_fake_openai(monkeypatch, should_fail=True)
 
     response = await assistant_module.chat(ChatRequest(message="merhaba"), user={"user_id": "user_1"})
     await _consume_sse(response)
