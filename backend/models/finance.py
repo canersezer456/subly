@@ -225,4 +225,5 @@ class AccountExport(BaseModel):
     budgets: list[dict]
     subscriptions: list[dict]
     assistant_messages: list[dict]
+    assistant_usage: list[dict] = []
     digest_prefs: list[dict] = []

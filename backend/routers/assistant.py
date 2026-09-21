@@ -79,7 +79,7 @@ async def chat(input: ChatRequest, user: dict = Depends(get_current_user)):
     budget = await check_budget(db.assistant_usage, user_id=user_id)
     if not budget["allowed"]:
         async def budget_denied_stream():
-            yield f"data: {json.dumps({'error': 'Günlük asistan kullanım limitine ulaştın. Lütfen yarın tekrar dene.'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'error': 'Günlük asistan kullanım limitine ulaştın. Lütfen yarın tekrar dene.', 'code': 'budget_exceeded'}, ensure_ascii=False)}\n\n"
             yield "data: {\"done\": true}\n\n"
 
         return StreamingResponse(
@@ -94,7 +94,7 @@ async def chat(input: ChatRequest, user: dict = Depends(get_current_user)):
     breaker = get_circuit_breaker()
     if not await breaker.allow_request():
         async def circuit_open_stream():
-            yield f"data: {json.dumps({'error': 'Asistan sağlayıcısı şu anda geçici olarak kullanılamıyor. Lütfen birkaç dakika sonra tekrar dene.'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'error': 'Asistan sağlayıcısı şu anda geçici olarak kullanılamıyor. Lütfen birkaç dakika sonra tekrar dene.', 'code': 'circuit_open'}, ensure_ascii=False)}\n\n"
             yield "data: {\"done\": true}\n\n"
 
         return StreamingResponse(
@@ -130,7 +130,7 @@ async def chat(input: ChatRequest, user: dict = Depends(get_current_user)):
         except Exception as exc:  # surface provider failures to the UI instead of a silent hang
             failed = True
             logger.exception("assistant stream failed")
-            yield f"data: {json.dumps({'error': 'Asistan şu anda yanıt veremiyor: ' + str(exc)[:120]}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'error': 'Asistan şu anda yanıt veremiyor: ' + str(exc)[:120], 'code': 'provider_error'}, ensure_ascii=False)}\n\n"
         # Phase 3 circuit breaker — only this try/except's boundary counts as a
         # provider/LLM failure; nothing before it (auth, budget, breaker gate
         # itself) or after it (message write, usage logging) can reach here.

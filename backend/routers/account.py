@@ -7,7 +7,7 @@ from lib.db import db
 from models.finance import AccountExport
 
 router = APIRouter(prefix="/account", tags=["account"])
-USER_COLLECTIONS = ("incomes", "expenses", "bills", "budgets", "subscriptions", "assistant_messages", "digest_prefs")
+USER_COLLECTIONS = ("incomes", "expenses", "bills", "budgets", "subscriptions", "assistant_messages", "assistant_usage", "digest_prefs")
 
 
 @router.get("/export", response_model=AccountExport)

@@ -154,6 +154,7 @@ async def test_circuit_open_skips_llm_call(monkeypatch):
     frames = await _consume_sse(response)
 
     assert any("error" in f for f in frames)
+    assert any(f.get("code") == "circuit_open" for f in frames)  # Phase 4: structured error code
     assert frames[-1] == {"done": True}
     assert fake_db.assistant_messages.inserted == []
     assert fake_db.assistant_usage.inserted == []  # no LLM call -> nothing to log
@@ -178,9 +179,10 @@ async def test_provider_failure_trips_circuit(monkeypatch):
     _install_fake_emergentintegrations(monkeypatch, should_fail=True)
 
     response = await assistant_module.chat(ChatRequest(message="merhaba"), user={"user_id": "user_1"})
-    await _consume_sse(response)
+    frames = await _consume_sse(response)
 
     assert breaker.state == OPEN
+    assert any(f.get("code") == "provider_error" for f in frames)  # Phase 4: structured error code
 
 
 async def test_successful_provider_call_resets_failure_count(monkeypatch):

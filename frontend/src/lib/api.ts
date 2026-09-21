@@ -7,12 +7,14 @@ const BASE = "/api";
 export class ApiError extends Error {
   status: number;
   body: unknown;
+  code?: string;
 
-  constructor(status: number, body: unknown) {
+  constructor(status: number, body: unknown, code?: string) {
     super(`request failed with ${status}`);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.code = code;
   }
 }
 
@@ -68,8 +70,8 @@ export async function apiStream(path: string, body: JsonBody, onDelta: (text: st
     buffer = lines.pop() ?? "";
     for (const line of lines) {
       if (!line.startsWith("data: ")) continue;
-      const event = JSON.parse(line.slice(6)) as { delta?: string; error?: string; done?: boolean };
-      if (event.error) throw new ApiError(502, event.error);
+      const event = JSON.parse(line.slice(6)) as { delta?: string; error?: string; code?: string; done?: boolean };
+      if (event.error) throw new ApiError(502, event.error, event.code);
       if (event.delta) onDelta(event.delta);
     }
   }

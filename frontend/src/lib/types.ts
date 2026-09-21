@@ -237,6 +237,7 @@ export interface AccountExport {
   budgets: unknown[];
   subscriptions: unknown[];
   assistant_messages: unknown[];
+  assistant_usage: unknown[];
   digest_prefs: unknown[];
 }
 

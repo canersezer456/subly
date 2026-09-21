@@ -152,6 +152,7 @@ async def test_assistant_denies_and_skips_llm_call_when_over_budget(monkeypatch)
     frames = await _consume_sse(response)
 
     assert any("error" in f for f in frames)
+    assert any(f.get("code") == "budget_exceeded" for f in frames)  # Phase 4: structured error code
     assert frames[-1] == {"done": True}
     assert fake_db.assistant_messages.inserted == []  # no user/assistant message written
     assert fake_db.assistant_usage.inserted == []  # Phase 1 logging not invoked on the denied path

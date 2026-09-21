@@ -3,12 +3,22 @@ import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Bot, Eraser, SendHorizonal, ShieldCheck, Sparkles } from "lucide-react";
-import { apiDelete, apiGet, apiStream } from "@/lib/api";
+import { ApiError, apiDelete, apiGet, apiStream } from "@/lib/api";
 import type { AssistantMessage } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/ui-bits";
+
+// Phase 4: distinct copy per SSE error `code` (routers/assistant.py) instead of one
+// generic message — budget_exceeded/circuit_open are not worth retrying immediately,
+// unlike a one-off provider hiccup. Missing/unknown codes fall back to the original
+// generic message, unchanged from before Phase 4.
+const ASSISTANT_ERROR_MESSAGES: Record<string, string> = {
+  budget_exceeded: "Günlük asistan kullanım limitine ulaştın. Yarın tekrar deneyebilirsin.",
+  circuit_open: "Asistan sağlayıcısı şu anda geçici olarak kullanılamıyor. Birkaç dakika sonra tekrar dene.",
+};
+const DEFAULT_ASSISTANT_ERROR_MESSAGE = "Asistan yanıt veremedi. Lütfen tekrar dene.";
 
 const SUGGESTIONS = [
   "Bu ay param nereye gitti?",
@@ -38,8 +48,9 @@ export default function Assistant() {
     setPending({ question: text, answer: "" });
     try {
       await apiStream("/assistant/chat", { message: text }, (delta) => setPending((p) => (p ? { ...p, answer: p.answer + delta } : p)));
-    } catch {
-      toast.error("Asistan yanıt veremedi. Lütfen tekrar dene.");
+    } catch (error) {
+      const code = error instanceof ApiError ? error.code : undefined;
+      toast.error((code && ASSISTANT_ERROR_MESSAGES[code]) || DEFAULT_ASSISTANT_ERROR_MESSAGE);
     } finally {
       await queryClient.invalidateQueries({ queryKey: ["assistant-history"] });
       setPending(null);
