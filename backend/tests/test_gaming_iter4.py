@@ -5,13 +5,14 @@
 """
 
 import os
+import uuid
 
 import httpx
 import pytest
 
 BACKEND_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://unruffled-hamilton-13.preview.emergentagent.com",
+    os.environ.get("BACKEND_URL", "http://localhost:8001"),
 ).rstrip("/")
 API = f"{BACKEND_URL}/api"
 
@@ -21,13 +22,28 @@ DEMO_PASSWORD = "subly1234"
 
 @pytest.fixture(scope="module")
 def session():
+    # A fresh, isolated user instead of the shared demo account: this module and
+    # test_gaming_nextgen.py both write to the demo account's gaming catalog
+    # overrides, and pytest.ini runs different modules in parallel xdist workers
+    # (loadscope only serializes *within* a module) — sharing the demo account's
+    # override state caused real cross-module races. Each module gets its own
+    # account so there is no shared mutable state to race on.
     s = httpx.Client(base_url=API, timeout=30.0)
-    r = s.post("/auth/login", json={"email": DEMO_EMAIL, "password": DEMO_PASSWORD})
-    assert r.status_code == 200, f"login failed: {r.status_code} {r.text}"
+    email = f"gaming-iter4-{uuid.uuid4().hex[:12]}@example.com"
+    r = s.post("/auth/register", json={"name": "Gaming Iter4 Test", "email": email, "password": "TestPass123!"})
+    assert r.status_code == 200, f"register failed: {r.status_code} {r.text}"
+    # The session cookie is Secure+SameSite=None (correct for production HTTPS);
+    # httpx's cookie jar won't re-attach it to a plain http://localhost request,
+    # so use the Bearer-token fallback get_current_user() already supports.
+    s.headers["Authorization"] = f"Bearer {r.cookies.get('session_token')}"
     # Reset state
     s.post("/gaming/admin/catalog/reset")
     yield s
     s.post("/gaming/admin/catalog/reset")
+    try:
+        s.delete("/account")  # self-delete only; leaves no orphan test account behind
+    except Exception:
+        pass
     s.close()
 
 

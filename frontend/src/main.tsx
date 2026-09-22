@@ -8,18 +8,21 @@ import App from './App.tsx'
 import { queryClient } from './lib/queryClient'
 import { applyTheme, readTheme } from './lib/theme'
 import { I18nProvider } from './lib/i18n'
+import { CurrencyProvider } from './lib/currency'
 
 applyTheme(readTheme())
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <I18nProvider>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-        <Toaster richColors />
-      </QueryClientProvider>
+      <CurrencyProvider>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+          <Toaster richColors />
+        </QueryClientProvider>
+      </CurrencyProvider>
     </I18nProvider>
   </StrictMode>,
 )

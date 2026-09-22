@@ -1,10 +1,23 @@
 import type { ComponentType } from "react";
-import * as BrandIcons from "@icons-pack/react-simple-icons";
+import { SiGoogle, SiNetflix, SiSpotify, SiYoutube } from "@icons-pack/react-simple-icons";
 import { Layers3 } from "lucide-react";
 
 type BrandIcon = ComponentType<{ size?: number; color?: string; title?: string }>;
 
-const iconLibrary = BrandIcons as unknown as Record<string, BrandIcon>;
+// Named imports only — the package ships thousands of brand icons; a wildcard
+// `import *` plus a dynamic string lookup defeats tree-shaking and used to pull
+// the entire library (~5.7MB) into the bundle for these few icons.
+//
+// Adobe/Amazon/ChatGPT are deliberately absent: this package has never
+// exported "SiAdobe"/"SiAmazon"/"SiOpenai" (checked node_modules directly —
+// no such icon files exist, not even under the old wildcard import). Those 3
+// entries in `providers` below already fell back to the generic Layers3 icon
+// before this file was touched; that pre-existing behavior is kept exactly
+// as-is rather than "fixed" here, since a different icon set is a visual
+// product decision, not a refactor.
+const iconLibrary: Record<string, BrandIcon> = {
+  SiNetflix, SiSpotify, SiYoutube, SiGoogle,
+};
 
 const providers: Record<string, { icon: string; color: string; surface: string }> = {
   netflix: { icon: "SiNetflix", color: "#E50914", surface: "rgba(229,9,20,.14)" },

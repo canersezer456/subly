@@ -7,20 +7,15 @@ import { money, monthIso, percent } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import type { GamingBudgetStatus, GamingDeal, GamingEarningsSummary, GamingGame, GamingHome, GamingSearchResponse, GamingSummary, GamingWatch } from "@/lib/types";
 import { PageHeader, Panel, ProgressBar } from "@/components/shared/ui-bits";
+import { GameMark } from "@/components/brand/GameMark";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 type Section = "popular" | "cheapest" | "campaigns" | "instant";
+type Translate = (key: string, vars?: Record<string, string | number>) => string;
 
-const SECTIONS: { key: Section; label: string; icon: typeof Flame; hint: string }[] = [
-  { key: "popular", label: "🔥 Popüler", icon: Flame, hint: "Türkiye'de en çok aranan başlıklar" },
-  { key: "cheapest", label: "💰 En Ucuz Fırsatlar", icon: Tag, hint: "Onaylı satıcılardan en düşük fiyat" },
-  { key: "campaigns", label: "🎁 Kampanyalar", icon: Gift, hint: "İndirim ve kupon avantajlı ürünler" },
-  { key: "instant", label: "⚡ Anında Teslimat", icon: Zap, hint: "Sipariş sonrası saniyeler içinde teslim" },
-];
-
-function reliabilityLabel(rel: string) {
-  return rel === "verified" ? "Onaylı" : rel === "trusted" ? "Güvenilir" : "Dikkat";
+function reliabilityLabel(rel: string, t: Translate) {
+  return rel === "verified" ? t("gaming.reliability.verified") : rel === "trusted" ? t("gaming.reliability.trusted") : t("gaming.reliability.caution");
 }
 
 function reliabilityColor(rel: string) {
@@ -75,30 +70,25 @@ function DealCard({ deal, testId }: { deal: GamingDeal; testId: string }) {
   );
 }
 
-function GameTile({ game, testId }: { game: GamingGame; testId: string }) {
+function GameTile({ game, testId, t }: { game: GamingGame; testId: string; t: Translate }) {
   return (
     <Link
       to={`/gaming/games/${game.slug}`}
       className="group flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-[border-color,transform] hover:-translate-y-0.5 hover:border-primary/40"
       data-testid={testId}
     >
-      <span
-        className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl"
-        style={{ backgroundColor: `${game.accent_color}22`, color: game.accent_color }}
-      >
-        <img src={game.icon_url} alt="" className="h-8 w-8 object-contain" loading="lazy" />
-      </span>
+      <GameMark name={game.name} iconUrl={game.icon_url} accentColor={game.accent_color} size={44} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-foreground">{game.name}</p>
         <p className="truncate text-[11px] text-muted-foreground">
-          {game.currency} · {game.product_count} ürün
+          {t("gaming.tile.products", { currency: game.currency, count: game.product_count })}
         </p>
       </div>
       <div className="text-right">
         {game.best_price_try != null && (
           <p className="font-mono text-xs font-semibold text-foreground" data-testid={`${testId}-price`}>{money(game.best_price_try, "TRY", 0)}</p>
         )}
-        <p className="text-[10px] text-muted-foreground">başlangıç</p>
+        <p className="text-[10px] text-muted-foreground">{t("gaming.tile.startingFrom")}</p>
       </div>
     </Link>
   );
@@ -108,6 +98,12 @@ export default function Gaming() {
   const [q, setQ] = useState("");
   const [section, setSection] = useState<Section>("popular");
   const { t } = useT();
+  const SECTIONS: { key: Section; label: string; icon: typeof Flame; hint: string }[] = [
+    { key: "popular", label: t("gaming.section.popular"), icon: Flame, hint: t("gaming.section.popularHint") },
+    { key: "cheapest", label: t("gaming.section.cheapest"), icon: Tag, hint: t("gaming.section.cheapestHint") },
+    { key: "campaigns", label: t("gaming.section.campaigns"), icon: Gift, hint: t("gaming.section.campaignsHint") },
+    { key: "instant", label: t("gaming.section.instant"), icon: Zap, hint: t("gaming.section.instantHint") },
+  ];
   const home = useQuery({ queryKey: ["gaming", "home"], queryFn: () => apiGet<GamingHome>("/gaming/home"), staleTime: 60_000 });
   const summary = useQuery({ queryKey: ["gaming", "summary", monthIso()], queryFn: () => apiGet<GamingSummary>(`/gaming/summary?month=${monthIso()}`), staleTime: 30_000 });
   const budget = useQuery({ queryKey: ["gaming", "budget", monthIso()], queryFn: () => apiGet<GamingBudgetStatus>(`/gaming/budget?month=${monthIso()}`), staleTime: 30_000 });
@@ -139,10 +135,10 @@ export default function Gaming() {
   }, [home.data, section]);
 
   if (home.isLoading) {
-    return <div className="grid min-h-[60svh] place-items-center text-sm text-muted-foreground" data-testid="gaming-loading">Gaming kataloğu yükleniyor…</div>;
+    return <div className="grid min-h-[60svh] place-items-center text-sm text-muted-foreground" data-testid="gaming-loading">{t("gaming.loading")}</div>;
   }
   if (home.error || !home.data) {
-    return <div className="grid min-h-[60svh] place-items-center text-sm text-rose-500" data-testid="gaming-error">Gaming kataloğu şu an açılamıyor.</div>;
+    return <div className="grid min-h-[60svh] place-items-center text-sm text-rose-500" data-testid="gaming-error">{t("gaming.loadError")}</div>;
   }
   const data = home.data;
   const monthlyTotal = summary.data?.total ?? 0;
@@ -176,7 +172,7 @@ export default function Gaming() {
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Oyun veya ürün ara (örn. Valorant, 2105 RP, PSN)"
+            placeholder={t("gaming.search.placeholder")}
             className="h-12 pl-9 text-sm"
             data-testid="gaming-search-input"
           />
@@ -184,16 +180,16 @@ export default function Gaming() {
         {q.trim().length >= 2 && (
           <div className="mt-4 grid gap-3 md:grid-cols-2" data-testid="gaming-search-results">
             <div>
-              <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Oyunlar</p>
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{t("gaming.search.games")}</p>
               <div className="space-y-1.5">
                 {(search.data?.games ?? []).slice(0, 5).map((g) => (
-                  <GameTile key={g.slug} game={g} testId={`gaming-search-game-${g.slug}`} />
+                  <GameTile key={g.slug} game={g} testId={`gaming-search-game-${g.slug}`} t={t} />
                 ))}
-                {(search.data?.games?.length ?? 0) === 0 && <p className="text-xs text-muted-foreground">Eşleşen oyun yok.</p>}
+                {(search.data?.games?.length ?? 0) === 0 && <p className="text-xs text-muted-foreground">{t("gaming.search.noGames")}</p>}
               </div>
             </div>
             <div>
-              <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Ürünler</p>
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{t("gaming.search.products")}</p>
               <div className="space-y-1.5">
                 {(search.data?.products ?? []).slice(0, 6).map((p) => (
                   <Link
@@ -209,7 +205,7 @@ export default function Gaming() {
                     {p.best_price_try != null && <span className="font-mono text-xs font-semibold">{money(p.best_price_try, "TRY", 0)}</span>}
                   </Link>
                 ))}
-                {(search.data?.products?.length ?? 0) === 0 && <p className="text-xs text-muted-foreground">Eşleşen ürün yok.</p>}
+                {(search.data?.products?.length ?? 0) === 0 && <p className="text-xs text-muted-foreground">{t("gaming.search.noProducts")}</p>}
               </div>
             </div>
           </div>
@@ -217,40 +213,40 @@ export default function Gaming() {
       </Panel>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <Panel title="Bugünün Gaming Fırsatları" description="Kampanyalı ve düşük fiyatlı öne çıkan seçim" testId="gaming-today-deals">
+        <Panel title={t("gaming.todayDeals.title")} description={t("gaming.todayDeals.description")} testId="gaming-today-deals">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {data.today_deals.map((d) => (
               <DealCard key={d.offer_id} deal={d} testId={`gaming-today-deal-${d.offer_id}`} />
             ))}
           </div>
         </Panel>
-        <Panel title="Bu ay Gaming harcaman" description="Otomatik olarak gider dashboarduna işlenir" testId="gaming-monthly-panel">
+        <Panel title={t("gaming.monthly.title")} description={t("gaming.monthly.description")} testId="gaming-monthly-panel">
           <div className="flex items-baseline gap-2">
             <Sparkles size={16} className="text-primary" />
             <p className="font-mono text-3xl font-bold text-foreground" data-testid="gaming-monthly-total">{money(monthlyTotal, "TRY", 2)}</p>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground" data-testid="gaming-monthly-count">{monthlyCount} satın alma</p>
+          <p className="mt-1 text-xs text-muted-foreground" data-testid="gaming-monthly-count">{t("gaming.monthly.purchaseCount", { count: monthlyCount })}</p>
           {budget.data?.limit != null && (
             <div className="mt-4" data-testid="gaming-budget-progress">
               <div className="mb-1.5 flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground">Aylık limit</span>
+                <span className="text-muted-foreground">{t("gaming.monthly.limit")}</span>
                 <span className={`font-mono ${budget.data.exceeded ? "text-rose-500" : budget.data.warning ? "text-amber-500" : "text-foreground"}`}>
                   {money(budget.data.spent, "TRY", 0)} / {money(budget.data.limit, "TRY", 0)} · {percent(budget.data.percent)}
                 </span>
               </div>
               <ProgressBar percent={budget.data.percent} exceeded={budget.data.exceeded} testId="gaming-budget-bar" />
-              {budget.data.exceeded && <p className="mt-1 text-[10px] font-medium text-rose-500" data-testid="gaming-budget-exceeded">Limit aşıldı — Ayarlar'dan güncelleyebilirsin.</p>}
-              {budget.data.warning && <p className="mt-1 text-[10px] font-medium text-amber-500" data-testid="gaming-budget-warning">Limitin %85'ini geçtin.</p>}
+              {budget.data.exceeded && <p className="mt-1 text-[10px] font-medium text-rose-500" data-testid="gaming-budget-exceeded">{t("gaming.monthly.limitExceeded")}</p>}
+              {budget.data.warning && <p className="mt-1 text-[10px] font-medium text-amber-500" data-testid="gaming-budget-warning">{t("gaming.monthly.limitWarning")}</p>}
             </div>
           )}
           {budget.data?.limit == null && (
             <Link to="/settings" className="mt-4 inline-flex items-center gap-1 rounded-lg border border-dashed border-border px-3 py-2 text-[11px] font-medium text-muted-foreground hover:text-foreground" data-testid="gaming-budget-cta">
-              <Wallet2 size={12} /> Aylık Gaming limiti belirle
+              <Wallet2 size={12} /> {t("gaming.monthly.setLimit")}
             </Link>
           )}
           {(summary.data?.top_games ?? []).length > 0 && (
             <div className="mt-4">
-              <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">En çok harcama</p>
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{t("gaming.monthly.topSpend")}</p>
               <ul className="space-y-1.5">
                 {summary.data!.top_games.map((row) => (
                   <li key={row.game} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-1.5 text-xs" data-testid={`gaming-top-game-${row.game}`}>
@@ -263,11 +259,11 @@ export default function Gaming() {
           )}
           <div className="mt-4 flex items-center justify-between text-[11px]">
             <Link to="/expenses" className="inline-flex items-center gap-1 font-medium text-primary hover:underline" data-testid="gaming-to-expenses">
-              <Wallet2 size={12} /> Giderlerde gör
+              <Wallet2 size={12} /> {t("gaming.monthly.viewInExpenses")}
             </Link>
             {earnings.data && earnings.data.total_commission > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-emerald-500" data-testid="gaming-earnings-chip">
-                <Coins size={11} /> {money(earnings.data.total_commission, "TRY", 2)} affiliate kazanç
+                <Coins size={11} /> {t("gaming.monthly.affiliateEarnings", { amount: money(earnings.data.total_commission, "TRY", 2) })}
               </span>
             )}
           </div>
@@ -300,18 +296,18 @@ export default function Gaming() {
           {sectionDeals.map((d) => (
             <DealCard key={d.offer_id} deal={d} testId={`gaming-section-deal-${d.offer_id}`} />
           ))}
-          {sectionDeals.length === 0 && <p className="text-xs text-muted-foreground">Şu an bu bölümde ürün yok.</p>}
+          {sectionDeals.length === 0 && <p className="text-xs text-muted-foreground">{t("gaming.section.empty")}</p>}
         </div>
       </Panel>
 
       <Panel
-        title="🔔 Fırsat Uyarıları"
-        description="Takibe aldığın ürünler için hedef fiyat düştüğünde burada ve panel uyarılarında görürsün"
+        title={t("gaming.watches.title")}
+        description={t("gaming.watches.description")}
         testId="gaming-watches-panel"
       >
         {(watches.data ?? []).length === 0 ? (
           <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground" data-testid="gaming-watches-empty">
-            Henüz takip listenizde ürün yok. Ürün sayfasında "Fiyatı takip et" butonuna basarak eklersiniz.
+            {t("gaming.watches.empty")}
           </p>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-testid="gaming-watches-list">
@@ -329,20 +325,20 @@ export default function Gaming() {
                   <Bell size={14} className={w.triggered ? "text-emerald-500" : "text-muted-foreground/60"} />
                 </div>
                 <div className="mt-2 flex items-baseline justify-between text-[11px]">
-                  <span className="text-muted-foreground">Hedef</span>
+                  <span className="text-muted-foreground">{t("gaming.watches.target")}</span>
                   <span className="font-mono font-semibold">{money(w.target_price_try, "TRY", 2)}</span>
                 </div>
                 <div className="mt-1 flex items-baseline justify-between text-[11px]">
-                  <span className="text-muted-foreground">Şu an</span>
+                  <span className="text-muted-foreground">{t("gaming.watches.current")}</span>
                   <span className={`font-mono font-semibold ${w.triggered ? "text-emerald-500" : "text-foreground"}`}>{money(w.current_price_try, "TRY", 2)}</span>
                 </div>
                 {w.triggered && (
                   <p className="mt-2 rounded-lg bg-emerald-500/15 px-2 py-1 text-[10px] font-medium text-emerald-500" data-testid={`gaming-watch-triggered-${w.id}`}>
-                    ✅ Hedef fiyata düştü · {w.best_seller_name}
+                    {t("gaming.watches.triggered", { seller: w.best_seller_name ?? "" })}
                   </p>
                 )}
                 <Link to={`/gaming/products/${w.product_id}`} className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline" data-testid={`gaming-watch-goto-${w.id}`}>
-                  Ürün sayfasına git <ArrowUpRight size={11} />
+                  {t("gaming.watches.goTo")} <ArrowUpRight size={11} />
                 </Link>
               </li>
             ))}
@@ -350,27 +346,27 @@ export default function Gaming() {
         )}
       </Panel>
 
-      <Panel title="Tüm oyunlar" description="Kategorine göre keşfet" testId="gaming-all-games">
+      <Panel title={t("gaming.allGames.title")} description={t("gaming.allGames.description")} testId="gaming-all-games">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {data.all_games.map((g) => (
-            <GameTile key={g.slug} game={g} testId={`gaming-game-tile-${g.slug}`} />
+            <GameTile key={g.slug} game={g} testId={`gaming-game-tile-${g.slug}`} t={t} />
           ))}
         </div>
       </Panel>
 
-      <Panel title="Güvenilir satıcılar" description="Güvenilirlik, teslimat ve iade koşulları" testId="gaming-sellers">
+      <Panel title={t("gaming.sellers.title")} description={t("gaming.sellers.description")} testId="gaming-sellers">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {data.sellers.map((s) => (
             <div key={s.id} className="rounded-xl border border-border bg-card p-4" data-testid={`gaming-seller-${s.id}`}>
               <div className="flex items-center justify-between">
                 <p className="font-heading text-sm font-semibold">{s.name}</p>
                 <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${reliabilityColor(s.reliability)}`}>
-                  <ShieldCheck size={10} /> {reliabilityLabel(s.reliability)}
+                  <ShieldCheck size={10} /> {reliabilityLabel(s.reliability, t)}
                 </span>
               </div>
               <p className="mt-1 text-[11px] text-muted-foreground">{s.domain}</p>
               <p className="mt-2 text-xs text-foreground">
-                <span className="text-muted-foreground">Teslimat:</span> {s.delivery}
+                <span className="text-muted-foreground">{t("gaming.sellers.delivery")}</span> {s.delivery}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">{s.return_policy}</p>
             </div>

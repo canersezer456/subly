@@ -133,10 +133,14 @@ async def chat(input: ChatRequest, user: dict = Depends(get_current_user)):
                 if delta:
                     chunks.append(delta)
                     yield f"data: {json.dumps({'delta': delta}, ensure_ascii=False)}\n\n"
-        except Exception as exc:  # surface provider failures to the UI instead of a silent hang
+        except Exception:  # surface provider failures to the UI instead of a silent hang
             failed = True
             logger.exception("assistant stream failed")
-            yield f"data: {json.dumps({'error': 'Asistan şu anda yanıt veremiyor: ' + str(exc)[:120], 'code': 'provider_error'}, ensure_ascii=False)}\n\n"
+            # Never leak raw exception details to the client (could contain provider
+            # internals, request payload fragments, or infra info) — a generic,
+            # i18n-manageable code is sent instead; full detail stays server-side via
+            # logger.exception above.
+            yield f"data: {json.dumps({'error': 'Asistan şu anda yanıt veremiyor. Lütfen birkaç dakika sonra tekrar dene.', 'code': 'provider_error'}, ensure_ascii=False)}\n\n"
         # Phase 3 circuit breaker — only this try/except's boundary counts as a
         # provider/LLM failure; nothing before it (auth, budget, breaker gate
         # itself) or after it (message write, usage logging) can reach here.

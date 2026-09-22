@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export type FieldValue = string | number | boolean;
@@ -21,6 +22,9 @@ export interface FieldDef {
 
 export const opts = (values: string[]) => values.map((value) => ({ value, label: value }));
 export const labelled = (map: Record<string, string>) => Object.entries(map).map(([value, label]) => ({ value, label }));
+// Like opts(), but the visible label goes through a translator while `value`
+// (what gets submitted/stored) stays the original, untranslated string.
+export const translatedOpts = (values: string[], labelFn: (value: string) => string) => values.map((value) => ({ value, label: labelFn(value) }));
 
 const controlClass = "h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground shadow-none outline-none transition-[border-color,box-shadow] focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/25";
 
@@ -29,6 +33,7 @@ export function EntityDialog({ open, title, description, fields, initial, onClos
   open: boolean; title: string; description?: string; fields: FieldDef[]; initial: FormValues; onClose: () => void;
   onSubmit: (values: FormValues) => void; busy?: boolean; submitLabel?: string; testId: string;
 }) {
+  const { t } = useT();
   const [values, setValues] = useState<FormValues>(initial);
   useEffect(() => { if (open) setValues(initial); }, [open, initial]);
   const set = (name: string, value: FieldValue) => setValues((old) => ({ ...old, [name]: value }));
@@ -76,8 +81,8 @@ export function EntityDialog({ open, title, description, fields, initial, onClos
             );
           })}
           <div className="mt-1 flex justify-end gap-2 sm:col-span-2">
-            <Button type="button" variant="ghost" onClick={onClose} data-testid={`${testId}-cancel`}>Vazgeç</Button>
-            <Button type="submit" disabled={busy} className="bg-primary text-primary-foreground hover:bg-primary/90" data-testid={`${testId}-submit`}>{busy ? "Kaydediliyor…" : submitLabel ?? "Kaydet"}</Button>
+            <Button type="button" variant="ghost" onClick={onClose} data-testid={`${testId}-cancel`}>{t("common.cancel")}</Button>
+            <Button type="submit" disabled={busy} className="bg-primary text-primary-foreground hover:bg-primary/90" data-testid={`${testId}-submit`}>{busy ? t("common.saving") : submitLabel ?? t("common.save")}</Button>
           </div>
         </form>
       </DialogContent>

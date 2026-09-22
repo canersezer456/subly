@@ -2,27 +2,30 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useCrud } from "@/hooks/useCrud";
-import { EXPENSE_CATEGORIES, PAYMENT_METHODS, dateLabel, money, monthIso, todayIso } from "@/lib/format";
+import { EXPENSE_CATEGORIES, PAYMENT_METHODS, categoryLabel, dateLabel, monthIso, paymentMethodLabel, todayIso } from "@/lib/format";
+import { useMoney } from "@/lib/currency";
+import { useT } from "@/lib/i18n";
 import type { Expense, ExpensePayload } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { EntityDialog, opts, type FieldDef, type FormValues } from "@/components/shared/EntityDialog";
+import { EntityDialog, translatedOpts, type FieldDef, type FormValues } from "@/components/shared/EntityDialog";
 import { EmptyState, PageHeader, Panel } from "@/components/shared/ui-bits";
 
-const fields: FieldDef[] = [
-  { name: "title", label: "Açıklama", required: true, placeholder: "Örn. Haftalık market", full: true },
-  { name: "amount", label: "Tutar (₺)", type: "number", required: true },
-  { name: "category", label: "Kategori", type: "select", options: opts(EXPENSE_CATEGORIES) },
-  { name: "date", label: "Tarih", type: "date", required: true },
-  { name: "payment_method", label: "Ödeme yöntemi", type: "select", options: opts(PAYMENT_METHODS) },
-  { name: "note", label: "Not", type: "textarea", placeholder: "İsteğe bağlı" },
-];
-
 export default function Expenses() {
+  const { t } = useT();
   const [params, setParams] = useSearchParams();
   const [month, setMonth] = useState(monthIso());
   const [editing, setEditing] = useState<Expense | null>(null);
   const open = params.get("new") === "1" || editing !== null;
   const crud = useCrud<Expense, ExpensePayload>("expenses", "/expenses", `?month=${month}`);
+  const { display } = useMoney();
+  const fields: FieldDef[] = [
+    { name: "title", label: t("expenses.field.title"), required: true, placeholder: t("expenses.field.titlePlaceholder"), full: true },
+    { name: "amount", label: t("expenses.field.amount"), type: "number", required: true },
+    { name: "category", label: t("expenses.field.category"), type: "select", options: translatedOpts(EXPENSE_CATEGORIES, (v) => categoryLabel(t, v)) },
+    { name: "date", label: t("expenses.field.date"), type: "date", required: true },
+    { name: "payment_method", label: t("expenses.field.paymentMethod"), type: "select", options: translatedOpts(PAYMENT_METHODS, (v) => paymentMethodLabel(t, v)) },
+    { name: "note", label: t("common.note"), type: "textarea", placeholder: t("common.optional") },
+  ];
 
   const total = crud.items.reduce((sum, item) => sum + item.amount, 0);
   const byCategory = useMemo(() => {
@@ -42,39 +45,39 @@ export default function Expenses() {
 
   return (
     <div data-testid="expenses-page">
-      <PageHeader eyebrow="Harcamalar" title="Param nereye gidiyor?" description="Manuel girdiğin harcamalar; faturalar ve abonelikler ayrıca otomatik dahil edilir, onları burada tekrar ekleme." testId="expenses-header"
+      <PageHeader eyebrow={t("expenses.eyebrow")} title={t("expenses.title")} description={t("expenses.description")} testId="expenses-header"
         actions={<>
           <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-9 rounded-lg border border-input bg-card px-3 text-sm" data-testid="expenses-month-filter" />
-          <Button onClick={() => setParams({ new: "1" })} className="bg-primary text-primary-foreground hover:bg-primary/90" data-testid="add-expense-button"><Plus size={15} /> Harcama ekle</Button>
+          <Button onClick={() => setParams({ new: "1" })} className="bg-primary text-primary-foreground hover:bg-primary/90" data-testid="add-expense-button"><Plus size={15} /> {t("expenses.action.add")}</Button>
         </>} />
 
       <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <Panel title="Harcama listesi" description={`${crud.items.length} kayıt · toplam ${money(total)}`} testId="expenses-list">
-          {crud.items.length === 0 ? <EmptyState title="Bu ay harcama yok" description="İlk harcamanı ekle; kategori dağılımı ve bütçe takibi otomatik güncellenir." action={<Button variant="outline" onClick={() => setParams({ new: "1" })} data-testid="expenses-empty-add-button">Harcama ekle</Button>} testId="expenses-empty" /> : (
+        <Panel title={t("expenses.list.title")} description={t("expenses.list.description", { count: crud.items.length, total: display(total) })} testId="expenses-list">
+          {crud.isLoading ? <p className="py-10 text-center text-sm text-muted-foreground" data-testid="expenses-loading">{t("common.loading")}</p> : crud.items.length === 0 ? <EmptyState title={t("expenses.empty.title")} description={t("expenses.empty.description")} action={<Button variant="outline" onClick={() => setParams({ new: "1" })} data-testid="expenses-empty-add-button">{t("expenses.action.add")}</Button>} testId="expenses-empty" /> : (
             <ul className="divide-y divide-border">
               {crud.items.map((item) => (
                 <li key={item.id} className="flex items-center gap-3 py-3" data-testid={`expense-item-${item.id}`}>
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-muted font-mono text-[10px] text-muted-foreground">{item.category.slice(0, 3).toUpperCase()}</span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium" data-testid={`expense-title-${item.id}`}>{item.title}</p>
-                    <p className="text-xs text-muted-foreground">{item.category} · {dateLabel(item.date)} · {item.payment_method}</p>
+                    <p className="text-xs text-muted-foreground">{categoryLabel(t, item.category)} · {dateLabel(item.date)} · {paymentMethodLabel(t, item.payment_method)}</p>
                   </div>
-                  <p className="font-mono text-sm font-semibold" data-testid={`expense-amount-${item.id}`}>{money(item.amount, "TRY", 2)}</p>
+                  <p className="font-mono text-sm font-semibold" data-testid={`expense-amount-${item.id}`}>{display(item.amount, 2)}</p>
                   <div className="flex gap-0.5">
-                    <Button variant="ghost" size="icon-sm" onClick={() => setEditing(item)} aria-label="Düzenle" data-testid={`edit-expense-${item.id}`}><Pencil size={14} /></Button>
-                    <Button variant="ghost" size="icon-sm" onClick={() => crud.remove.mutate(item.id)} className="text-muted-foreground hover:text-rose-500" aria-label="Sil" data-testid={`delete-expense-${item.id}`}><Trash2 size={14} /></Button>
+                    <Button variant="ghost" size="icon-sm" onClick={() => setEditing(item)} aria-label={t("common.edit")} data-testid={`edit-expense-${item.id}`}><Pencil size={14} /></Button>
+                    <Button variant="ghost" size="icon-sm" onClick={() => crud.remove.mutate(item.id)} className="text-muted-foreground hover:text-rose-500" aria-label={t("common.delete")} data-testid={`delete-expense-${item.id}`}><Trash2 size={14} /></Button>
                   </div>
                 </li>
               ))}
             </ul>
           )}
         </Panel>
-        <Panel title="Kategori özeti" description="Seçili ay" testId="expenses-category-summary">
-          {byCategory.length === 0 ? <p className="text-sm text-muted-foreground">Veri yok.</p> : (
+        <Panel title={t("expenses.category.title")} description={t("expenses.category.description")} testId="expenses-category-summary">
+          {byCategory.length === 0 ? <p className="text-sm text-muted-foreground">{t("expenses.category.empty")}</p> : (
             <ul className="space-y-2.5">
               {byCategory.map(([category, amount]) => (
                 <li key={category} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm" data-testid={`expense-category-${category}`}>
-                  <span>{category}</span><span className="font-mono">{money(amount)}</span>
+                  <span>{categoryLabel(t, category)}</span><span className="font-mono">{display(amount)}</span>
                 </li>
               ))}
             </ul>
@@ -82,7 +85,7 @@ export default function Expenses() {
         </Panel>
       </div>
 
-      <EntityDialog open={open} onClose={close} title={editing ? "Harcamayı düzenle" : "Yeni harcama"} description="Tutarı ve kategoriyi gir; bütçe kullanımın anında güncellenir." fields={fields} initial={initial} onSubmit={submit} busy={crud.create.isPending || crud.update.isPending} submitLabel={editing ? "Kaydet" : "Harcamayı ekle"} testId="expense-dialog" />
+      <EntityDialog open={open} onClose={close} title={editing ? t("expenses.dialog.editTitle") : t("expenses.dialog.newTitle")} description={t("expenses.dialog.description")} fields={fields} initial={initial} onSubmit={submit} busy={crud.create.isPending || crud.update.isPending} submitLabel={editing ? t("common.save") : t("expenses.action.add")} testId="expense-dialog" />
     </div>
   );
 }

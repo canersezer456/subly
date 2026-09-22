@@ -5,10 +5,12 @@ import { toast } from "sonner";
 import { ArrowLeft, Check, Clock, Download, Filter, History, PencilLine, RotateCcw, Save, Undo2, Upload, X } from "lucide-react";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { money } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { GamingBulkImport, GamingCatalogAdminRow, GamingCatalogHistoryEntry, GamingImportResult, GamingOfferOverrideInput } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader, Panel } from "@/components/shared/ui-bits";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 function reliabilityChipColor(rel: string) {
   return rel === "verified"
@@ -19,6 +21,7 @@ function reliabilityChipColor(rel: string) {
 }
 
 export default function GamingAdmin() {
+  const { t } = useT();
   const qc = useQueryClient();
   const [gameFilter, setGameFilter] = useState<string>("all");
   const [onlyOverrides, setOnlyOverrides] = useState(false);
@@ -38,7 +41,7 @@ export default function GamingAdmin() {
     mutationFn: ({ offer_id, payload }: { offer_id: string; payload: GamingOfferOverrideInput }) =>
       apiPut<GamingCatalogAdminRow>(`/gaming/admin/catalog/${offer_id}`, payload),
     onSuccess: (_data, vars) => {
-      toast.success("Fiyat güncellendi");
+      toast.success(t("gamingAdmin.toast.priceUpdated"));
       setEditing((prev) => {
         const next = { ...prev };
         delete next[vars.offer_id];
@@ -46,13 +49,13 @@ export default function GamingAdmin() {
       });
       qc.invalidateQueries({ queryKey: ["gaming"] });
     },
-    onError: () => toast.error("Kayıt yapılamadı"),
+    onError: () => toast.error(t("gamingAdmin.toast.saveFailed")),
   });
 
   const clear = useMutation({
     mutationFn: (offer_id: string) => apiDelete<void>(`/gaming/admin/catalog/${offer_id}`),
     onSuccess: () => {
-      toast.success("Özel fiyat kaldırıldı");
+      toast.success(t("gamingAdmin.toast.overrideRemoved"));
       qc.invalidateQueries({ queryKey: ["gaming"] });
     },
   });
@@ -60,17 +63,17 @@ export default function GamingAdmin() {
   const revert = useMutation({
     mutationFn: (history_id: string) => apiPost<GamingCatalogAdminRow>(`/gaming/admin/catalog/history/${history_id}/revert`),
     onSuccess: () => {
-      toast.success("Önceki değere geri alındı");
+      toast.success(t("gamingAdmin.toast.reverted"));
       qc.invalidateQueries({ queryKey: ["gaming"] });
       qc.invalidateQueries({ queryKey: ["gaming", "admin-history"] });
     },
-    onError: () => toast.error("Geri alma başarısız"),
+    onError: () => toast.error(t("gamingAdmin.toast.revertFailed")),
   });
 
   const resetAll = useMutation({
     mutationFn: () => apiPost<void>("/gaming/admin/catalog/reset"),
     onSuccess: () => {
-      toast.success("Tüm özel fiyatlar sıfırlandı");
+      toast.success(t("gamingAdmin.toast.allReset"));
       qc.invalidateQueries({ queryKey: ["gaming"] });
     },
   });
@@ -78,11 +81,11 @@ export default function GamingAdmin() {
   const importJsonMut = useMutation({
     mutationFn: (payload: GamingBulkImport) => apiPost<GamingImportResult>("/gaming/admin/catalog/import", payload),
     onSuccess: (data) => {
-      toast.success(`${data.applied} teklif güncellendi · ${data.skipped} atlandı`);
+      toast.success(t("gamingAdmin.toast.importApplied", { applied: data.applied, skipped: data.skipped }));
       setImportJson("");
       qc.invalidateQueries({ queryKey: ["gaming"] });
     },
-    onError: () => toast.error("JSON içeriği okunamadı"),
+    onError: () => toast.error(t("gamingAdmin.toast.jsonInvalid")),
   });
 
   const uploadCsv = useMutation({
@@ -94,11 +97,11 @@ export default function GamingAdmin() {
       return (await res.json()) as GamingImportResult;
     },
     onSuccess: (data) => {
-      toast.success(`${data.applied} satır uygulandı · ${data.skipped} atlandı`);
+      toast.success(t("gamingAdmin.toast.csvApplied", { applied: data.applied, skipped: data.skipped }));
       qc.invalidateQueries({ queryKey: ["gaming"] });
       if (csvInput.current) csvInput.current.value = "";
     },
-    onError: () => toast.error("CSV yüklenemedi"),
+    onError: () => toast.error(t("gamingAdmin.toast.csvFailed")),
   });
 
   const gameOptions = useMemo(() => {
@@ -149,28 +152,28 @@ export default function GamingAdmin() {
       if (!Array.isArray(overrides)) throw new Error("bad shape");
       importJsonMut.mutate({ overrides });
     } catch {
-      toast.error("Geçerli JSON değil");
+      toast.error(t("gamingAdmin.toast.jsonInvalid"));
     }
   }
 
   return (
     <div className="space-y-6" data-testid="gaming-admin-page">
       <Link to="/gaming" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" data-testid="gaming-admin-back">
-        <ArrowLeft size={13} /> Gaming ana sayfası
+        <ArrowLeft size={13} /> {t("gamingGame.back")}
       </Link>
 
       <PageHeader
-        eyebrow="Katalog Editörü"
-        title="Fiyatları sen yönet"
-        description="Gerçek zamanlı gördüğün fiyatları buradan güncelle. Değişikliklerin yalnızca senin hesabında geçerlidir. JSON/CSV yükleyip toplu güncelleme yapabilirsin."
+        eyebrow={t("gamingAdmin.eyebrow")}
+        title={t("gamingAdmin.title")}
+        description={t("gamingAdmin.description")}
         testId="gaming-admin-header"
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={exportJson} data-testid="gaming-admin-export">
-              <Download size={13} /> JSON dışa aktar
+              <Download size={13} /> {t("gamingAdmin.exportJson")}
             </Button>
             <Button variant="outline" onClick={() => csvInput.current?.click()} data-testid="gaming-admin-csv-btn">
-              <Upload size={13} /> CSV yükle
+              <Upload size={13} /> {t("gamingAdmin.uploadCsv")}
             </Button>
             <input
               ref={csvInput}
@@ -184,13 +187,13 @@ export default function GamingAdmin() {
               data-testid="gaming-admin-csv-input"
             />
             <Button variant="outline" onClick={() => resetAll.mutate()} disabled={resetAll.isPending} data-testid="gaming-admin-reset">
-              <RotateCcw size={13} /> Tümünü sıfırla
+              <RotateCcw size={13} /> {t("gamingAdmin.resetAll")}
             </Button>
           </div>
         }
       />
 
-      <Panel title="Toplu JSON içe aktarma" description="Aşağıya paste'le: { overrides: [{ offer_id, price_try, ... }] }" testId="gaming-admin-json-panel">
+      <Panel title={t("gamingAdmin.jsonImport.title")} description={t("gamingAdmin.jsonImport.description")} testId="gaming-admin-json-panel">
         <textarea
           value={importJson}
           onChange={(e) => setImportJson(e.target.value)}
@@ -201,7 +204,7 @@ export default function GamingAdmin() {
         />
         <div className="mt-3 flex justify-end">
           <Button onClick={importFromJson} disabled={importJsonMut.isPending || !importJson.trim()} data-testid="gaming-admin-json-apply">
-            <Upload size={13} /> Uygula
+            <Upload size={13} /> {t("gamingAdmin.apply")}
           </Button>
         </div>
       </Panel>
@@ -215,7 +218,7 @@ export default function GamingAdmin() {
             className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
             data-testid="gaming-admin-filter-game"
           >
-            <option value="all">Tüm oyunlar</option>
+            <option value="all">{t("gamingAdmin.allGames")}</option>
             {gameOptions.map((slug) => {
               const label = rows.data?.find((r) => r.game_slug === slug)?.game_name ?? slug;
               return <option key={slug} value={slug}>{label}</option>;
@@ -229,29 +232,29 @@ export default function GamingAdmin() {
               className="h-3.5 w-3.5"
               data-testid="gaming-admin-filter-overrides"
             />
-            Sadece düzenlenmiş satırlar
+            {t("gamingAdmin.onlyEdited")}
           </label>
-          <p className="ml-auto text-xs text-muted-foreground" data-testid="gaming-admin-count">{filteredRows.length} satır</p>
+          <p className="ml-auto text-xs text-muted-foreground" data-testid="gaming-admin-count">{t("gamingAdmin.rowCount", { count: filteredRows.length })}</p>
         </div>
       </Panel>
 
       <Panel testId="gaming-admin-table">
         {rows.isLoading ? (
-          <p className="py-8 text-center text-sm text-muted-foreground" data-testid="gaming-admin-loading">Yükleniyor…</p>
+          <p className="py-8 text-center text-sm text-muted-foreground" data-testid="gaming-admin-loading">{t("common.loading")}</p>
         ) : filteredRows.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Bu filtreye uyan satır yok.</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">{t("gamingAdmin.noMatchingRows")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                  <th className="py-2 pr-2">Ürün / Satıcı</th>
-                  <th className="px-2 text-right">Baz Fiyat</th>
-                  <th className="px-2 text-right">Fiyat (₺)</th>
-                  <th className="px-2">Teslimat</th>
-                  <th className="px-2">Kampanya</th>
-                  <th className="px-2">Durum</th>
-                  <th className="py-2 pl-2 text-right">İşlem</th>
+                  <th className="py-2 pr-2">{t("gamingAdmin.table.productSeller")}</th>
+                  <th className="px-2 text-right">{t("gamingAdmin.table.basePrice")}</th>
+                  <th className="px-2 text-right">{t("gamingAdmin.table.price")}</th>
+                  <th className="px-2">{t("gamingAdmin.table.delivery")}</th>
+                  <th className="px-2">{t("gamingAdmin.table.campaign")}</th>
+                  <th className="px-2">{t("gamingAdmin.table.status")}</th>
+                  <th className="py-2 pl-2 text-right">{t("gamingAdmin.table.action")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -295,10 +298,10 @@ export default function GamingAdmin() {
                       <td className="px-2 text-xs">
                         {row.has_override ? (
                           <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                            <Check size={10} /> Düzenlendi
+                            <Check size={10} /> {t("gamingAdmin.status.edited")}
                           </span>
                         ) : (
-                          <span className="text-muted-foreground">Katalog</span>
+                          <span className="text-muted-foreground">{t("gamingAdmin.status.catalog")}</span>
                         )}
                       </td>
                       <td className="py-2 pl-2 text-right">
@@ -309,6 +312,7 @@ export default function GamingAdmin() {
                             onClick={() => commit(row)}
                             disabled={!dirty || save.isPending}
                             className={dirty ? "bg-primary text-primary-foreground" : ""}
+                            aria-label={t("common.save")}
                             data-testid={`gaming-admin-save-${row.offer_id}`}
                           >
                             <Save size={12} />
@@ -318,6 +322,7 @@ export default function GamingAdmin() {
                             variant="ghost"
                             onClick={() => setHistoryOffer(row)}
                             className="text-muted-foreground hover:text-primary"
+                            aria-label={t("gamingAdmin.history.eyebrow")}
                             data-testid={`gaming-admin-history-${row.offer_id}`}
                           >
                             <History size={12} />
@@ -328,6 +333,7 @@ export default function GamingAdmin() {
                               variant="ghost"
                               onClick={() => clear.mutate(row.offer_id)}
                               className="text-muted-foreground hover:text-rose-500"
+                              aria-label={t("common.remove")}
                               data-testid={`gaming-admin-clear-${row.offer_id}`}
                             >
                               <X size={12} />
@@ -344,31 +350,27 @@ export default function GamingAdmin() {
         )}
         <p className="mt-4 flex items-start gap-2 rounded-lg border border-border bg-muted/30 p-3 text-[11px] leading-relaxed text-muted-foreground" data-testid="gaming-admin-note">
           <PencilLine size={12} className="mt-0.5 shrink-0" />
-          Değişikliklerin yalnızca senin hesabındaki Gaming sayfalarını etkiler. offer_id sabit kalır; bu kimliği JSON/CSV içe aktarmalarında referans olarak kullanabilirsin.
+          {t("gamingAdmin.footnote")}
         </p>
       </Panel>
 
-      {historyOffer && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 px-4" data-testid="gaming-admin-history-modal" onClick={() => setHistoryOffer(null)}>
-          <div className="w-full max-w-2xl rounded-2xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-wider text-primary">Geçmiş</p>
-                <h2 className="font-heading text-lg font-bold" data-testid="gaming-admin-history-title">
+      <Dialog open={Boolean(historyOffer)} onOpenChange={(next) => !next && setHistoryOffer(null)}>
+        <DialogContent className="border-border bg-card sm:max-w-2xl" data-testid="gaming-admin-history-modal">
+          {historyOffer && (
+            <>
+              <DialogHeader>
+                <p className="text-[11px] uppercase tracking-wider text-primary">{t("gamingAdmin.history.eyebrow")}</p>
+                <DialogTitle className="font-heading text-lg font-bold" data-testid="gaming-admin-history-title">
                   {historyOffer.game_name} · {historyOffer.product_name}
-                </h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">{historyOffer.seller_name}</p>
-              </div>
-              <button type="button" onClick={() => setHistoryOffer(null)} className="text-muted-foreground hover:text-foreground" data-testid="gaming-admin-history-close">
-                <X size={16} />
-              </button>
-            </div>
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground">{historyOffer.seller_name}</p>
+              </DialogHeader>
 
-            <div className="mt-4 max-h-[24rem] overflow-y-auto">
+              <div className="max-h-[24rem] overflow-y-auto">
               {history.isLoading ? (
-                <p className="py-8 text-center text-xs text-muted-foreground" data-testid="gaming-admin-history-loading">Yükleniyor…</p>
+                <p className="py-8 text-center text-xs text-muted-foreground" data-testid="gaming-admin-history-loading">{t("common.loading")}</p>
               ) : (history.data ?? []).length === 0 ? (
-                <p className="py-8 text-center text-xs text-muted-foreground" data-testid="gaming-admin-history-empty">Bu ürün için henüz düzenleme yok.</p>
+                <p className="py-8 text-center text-xs text-muted-foreground" data-testid="gaming-admin-history-empty">{t("gamingAdmin.history.empty")}</p>
               ) : (
                 <ul className="space-y-2" data-testid="gaming-admin-history-list">
                   {history.data!.map((entry) => (
@@ -381,15 +383,15 @@ export default function GamingAdmin() {
                       </div>
                       <div className="grid gap-2 text-xs sm:grid-cols-2">
                         <div>
-                          <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Önce</p>
+                          <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{t("gamingAdmin.history.before")}</p>
                           <pre className="max-h-24 overflow-y-auto rounded bg-background/50 p-2 font-mono text-[11px]">
-                            {entry.before ? JSON.stringify(entry.before, null, 2) : "— katalog varsayılan —"}
+                            {entry.before ? JSON.stringify(entry.before, null, 2) : t("gamingAdmin.history.catalogDefault")}
                           </pre>
                         </div>
                         <div>
-                          <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Sonra</p>
+                          <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{t("gamingAdmin.history.after")}</p>
                           <pre className="max-h-24 overflow-y-auto rounded bg-background/50 p-2 font-mono text-[11px]">
-                            {entry.after ? JSON.stringify(entry.after, null, 2) : "— katalog varsayılan —"}
+                            {entry.after ? JSON.stringify(entry.after, null, 2) : t("gamingAdmin.history.catalogDefault")}
                           </pre>
                         </div>
                       </div>
@@ -401,17 +403,18 @@ export default function GamingAdmin() {
                           disabled={revert.isPending}
                           data-testid={`gaming-admin-history-revert-${entry.id}`}
                         >
-                          <Undo2 size={12} /> Bu değere geri al
+                          <Undo2 size={12} /> {t("gamingAdmin.history.revertToThis")}
                         </Button>
                       </div>
                     </li>
                   ))}
                 </ul>
               )}
-            </div>
-          </div>
-        </div>
-      )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

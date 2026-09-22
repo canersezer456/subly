@@ -3,10 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Sparkles, Timer } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { money } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { GamingGameDetail } from "@/lib/types";
 import { PageHeader, Panel } from "@/components/shared/ui-bits";
+import { GameMark } from "@/components/brand/GameMark";
 
-const TAG_LABEL: Record<string, string> = { popular: "Popüler", best_value: "En Avantajlı", new: "Yeni" };
 const TAG_COLOR: Record<string, string> = {
   popular: "bg-fuchsia-500/12 text-fuchsia-400 border-fuchsia-500/25",
   best_value: "bg-emerald-500/12 text-emerald-500 border-emerald-500/25",
@@ -14,6 +15,8 @@ const TAG_COLOR: Record<string, string> = {
 };
 
 export default function GamingGame() {
+  const { t } = useT();
+  const TAG_LABEL: Record<string, string> = { popular: t("gaming.tag.popular"), best_value: t("gaming.tag.bestValue"), new: t("gaming.tag.new") };
   const { slug = "" } = useParams();
   const game = useQuery({
     queryKey: ["gaming", "game", slug],
@@ -22,23 +25,18 @@ export default function GamingGame() {
     staleTime: 60_000,
   });
 
-  if (game.isLoading) return <div className="grid min-h-[50svh] place-items-center text-sm text-muted-foreground" data-testid="gaming-game-loading">Oyun yükleniyor…</div>;
-  if (game.error || !game.data) return <div className="grid min-h-[50svh] place-items-center text-sm text-rose-500" data-testid="gaming-game-error">Oyun bulunamadı.</div>;
+  if (game.isLoading) return <div className="grid min-h-[50svh] place-items-center text-sm text-muted-foreground" data-testid="gaming-game-loading">{t("gamingGame.loading")}</div>;
+  if (game.error || !game.data) return <div className="grid min-h-[50svh] place-items-center text-sm text-rose-500" data-testid="gaming-game-error">{t("gamingGame.notFound")}</div>;
   const g = game.data;
 
   return (
     <div className="space-y-6" data-testid="gaming-game-page">
       <Link to="/gaming" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" data-testid="gaming-game-back">
-        <ArrowLeft size={13} /> Gaming ana sayfası
+        <ArrowLeft size={13} /> {t("gamingGame.back")}
       </Link>
 
       <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 sm:flex-row sm:items-center" data-testid="gaming-game-hero" style={{ borderColor: `${g.accent_color}55` }}>
-        <span
-          className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl"
-          style={{ backgroundColor: `${g.accent_color}22`, color: g.accent_color }}
-        >
-          <img src={g.icon_url} alt="" className="h-12 w-12 object-contain" />
-        </span>
+        <GameMark name={g.name} iconUrl={g.icon_url} accentColor={g.accent_color} size={64} rounded="2xl" testId="gaming-game-icon" />
         <div className="min-w-0 flex-1">
           <p className="text-[11px] uppercase tracking-wider" style={{ color: g.accent_color }}>{g.category} · {g.currency}</p>
           <h1 className="font-heading text-2xl font-bold text-foreground" data-testid="gaming-game-title">{g.name}</h1>
@@ -46,13 +44,13 @@ export default function GamingGame() {
         </div>
         {g.best_price_try != null && (
           <div className="text-right">
-            <p className="text-[11px] text-muted-foreground">Başlangıç</p>
+            <p className="text-[11px] text-muted-foreground">{t("gamingGame.startingFrom")}</p>
             <p className="font-mono text-lg font-bold text-foreground" data-testid="gaming-game-start-price">{money(g.best_price_try, "TRY", 0)}</p>
           </div>
         )}
       </div>
 
-      <PageHeader eyebrow="Ürünler" title="Hangi paketi almak istiyorsun?" description="En uygun teklif ve teslimat süresi ürün sayfasında karşılaştırılır." testId="gaming-products-header" />
+      <PageHeader eyebrow={t("gamingGame.eyebrow")} title={t("gamingGame.title")} description={t("gamingGame.description")} testId="gaming-products-header" />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="gaming-game-products">
         {g.products.map((p) => (
@@ -74,19 +72,19 @@ export default function GamingGame() {
               )}
             </div>
             <div>
-              <p className="text-[11px] text-muted-foreground">En düşük fiyat</p>
+              <p className="text-[11px] text-muted-foreground">{t("gamingGame.lowestPrice")}</p>
               <p className="font-mono text-xl font-bold text-foreground" data-testid={`gaming-product-price-${p.id}`}>
                 {p.best_price_try != null ? money(p.best_price_try, "TRY", 2) : "-"}
               </p>
             </div>
             <p className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Timer size={11} /> {p.offer_count} satıcıdan karşılaştır
+              <Timer size={11} /> {t("gamingGame.compareSellers", { count: p.offer_count })}
             </p>
           </Link>
         ))}
         {g.products.length === 0 && (
           <Panel testId="gaming-game-empty">
-            <p className="text-sm text-muted-foreground">Bu oyunda henüz ürün yok.</p>
+            <p className="text-sm text-muted-foreground">{t("gamingGame.noProducts")}</p>
           </Panel>
         )}
       </div>

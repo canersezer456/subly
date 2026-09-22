@@ -7,6 +7,12 @@ file — add app-specific fixtures below the marker at the bottom.
 
 import os
 
+# Router-level unit tests import lib.db, which reads MONGO_URL/DB_NAME at import time.
+# Those tests swap in fake collections, and Motor never connects on construction, so a
+# deliberately unreachable placeholder is enough — no real MongoDB is ever contacted.
+os.environ.setdefault("MONGO_URL", "mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=100")
+os.environ.setdefault("DB_NAME", "subly_unit_tests")
+
 import httpx
 import pytest
 import pytest_asyncio
@@ -45,3 +51,65 @@ async def aclient():
 
 
 # --- app-specific fixtures below this line ---
+
+import uuid  # noqa: E402
+
+
+def _register_and_auth(prefix: str = "isotest") -> httpx.Client:
+    """Register a brand-new, uniquely-emailed user and return an httpx.Client
+    authenticated as that user via an Authorization: Bearer header.
+
+    Why Bearer and not the cookie jar: /auth/register's session cookie is
+    Secure + SameSite=None (correct, required behavior for a real browser
+    over production HTTPS). httpx's cookie jar will not re-attach a Secure
+    cookie to a plain http://localhost request, so a client relying on the
+    jar would get 401 on every request after a successful register/login.
+    get_current_user() (lib/auth.py) already supports a Bearer token as a
+    fallback, so tests use that instead of weakening any cookie attribute.
+    """
+    c = httpx.Client(base_url=API_URL, timeout=30.0)
+    email = f"{prefix}-{uuid.uuid4().hex[:12]}@example.com"
+    r = c.post("/auth/register", json={"name": "Isolation Test User", "email": email, "password": "TestPass123!"})
+    assert r.status_code == 200, f"register failed: {r.status_code} {r.text}"
+    token = r.cookies.get("session_token")
+    assert token, "no session_token cookie returned from register"
+    c.headers["Authorization"] = f"Bearer {token}"
+    return c
+
+
+def _self_delete(c: httpx.Client) -> None:
+    # Each test account deletes only itself (DELETE /account, scoped to the
+    # calling user's own user_id) so repeated test runs don't leave orphan
+    # throwaway accounts piling up in the real database. Best-effort: a
+    # failed cleanup must never fail the test that already passed/failed.
+    try:
+        c.delete("/account")
+    except Exception:
+        pass
+    c.close()
+
+
+@pytest.fixture
+def new_user() -> httpx.Client:
+    """A single fresh, isolated, authenticated user session for the test."""
+    c = _register_and_auth()
+    yield c
+    _self_delete(c)
+
+
+@pytest.fixture
+def make_user():
+    """Factory fixture: call make_user() as many times as needed in one test
+    to get independent, isolated authenticated users (e.g. User A / User B
+    for cross-user isolation tests). Each call registers a brand-new account.
+    """
+    clients: list[httpx.Client] = []
+
+    def _make(prefix: str = "isotest") -> httpx.Client:
+        c = _register_and_auth(prefix)
+        clients.append(c)
+        return c
+
+    yield _make
+    for c in clients:
+        _self_delete(c)

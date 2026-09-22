@@ -13,6 +13,8 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { LevelPill } from "@/components/shared/ui-bits";
 import { SBrand } from "@/components/brand/SBrand";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
+import { CurrencySwitcher } from "@/components/layout/CurrencySwitcher";
+import { CommandPalette } from "@/components/layout/CommandPalette";
 
 export const NAV_ITEMS = [
   { to: "/dashboard", key: "nav.dashboard", icon: LayoutDashboard },
@@ -67,10 +69,11 @@ function NavList({ onNavigate, compact = false }: { onNavigate?: () => void; com
 }
 
 function AlertsPopover({ alerts }: { alerts: Alert[] }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
-      <Button variant="ghost" size="icon" onClick={() => setOpen((o) => !o)} className="relative text-muted-foreground" aria-label="Uyarılar" data-testid="alerts-button">
+      <Button variant="ghost" size="icon" onClick={() => setOpen((o) => !o)} className="relative text-muted-foreground" aria-label={t("shell.alerts")} data-testid="alerts-button">
         <Bell size={17} />
         {alerts.length > 0 && <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-slate-950" data-testid="alerts-count">{alerts.length}</span>}
       </Button>
@@ -79,15 +82,15 @@ function AlertsPopover({ alerts }: { alerts: Alert[] }) {
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-11 z-50 w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-popover p-3 shadow-2xl" data-testid="alerts-panel">
             <div className="mb-2 flex items-center justify-between px-1">
-              <p className="text-sm font-semibold">Akıllı uyarılar</p>
-              <button type="button" onClick={() => setOpen(false)} className="text-muted-foreground" data-testid="alerts-close"><X size={14} /></button>
+              <p className="text-sm font-semibold">{t("shell.alerts.title")}</p>
+              <button type="button" onClick={() => setOpen(false)} className="text-muted-foreground" aria-label={t("common.close")} data-testid="alerts-close"><X size={14} /></button>
             </div>
-            {alerts.length === 0 ? <p className="px-1 py-6 text-center text-xs text-muted-foreground" data-testid="alerts-empty">Şu an önemli bir uyarı yok. Her şey yolunda.</p> : (
+            {alerts.length === 0 ? <p className="px-1 py-6 text-center text-xs text-muted-foreground" data-testid="alerts-empty">{t("shell.alerts.empty")}</p> : (
               <ul className="max-h-80 space-y-1 overflow-y-auto">
                 {alerts.map((alert) => (
                   <li key={alert.id}>
                     <Link to={alert.path} onClick={() => setOpen(false)} className="flex items-start gap-2 rounded-lg px-2 py-2 text-xs leading-relaxed hover:bg-accent" data-testid={`alert-item-${alert.id}`}>
-                      <LevelPill level={alert.level}>{alert.level === "warning" ? "Dikkat" : alert.level === "success" ? "Fırsat" : "Bilgi"}</LevelPill>
+                      <LevelPill level={alert.level}>{alert.level === "warning" ? t("shell.alerts.warning") : alert.level === "success" ? t("shell.alerts.opportunity") : t("shell.alerts.info")}</LevelPill>
                       <span className="text-foreground">{alert.message}</span>
                     </Link>
                   </li>
@@ -110,7 +113,7 @@ export function AppShell() {
   const alerts = useQuery({ queryKey: ["alerts"], queryFn: () => apiGet<Alert[]>("/alerts"), enabled: Boolean(me.data), retry: false });
 
   if (me.isLoading) return <div className="grid min-h-svh place-items-center bg-background text-sm text-muted-foreground" data-testid="auth-loading-state">{t("brand.loading")}</div>;
-  if (!me.data) return <Navigate to="/" replace state={{ from: location.pathname }} />;
+  if (!me.data) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   const user = me.data;
   const current = NAV_ITEMS.find((item) => location.pathname.startsWith(item.to));
 
@@ -132,13 +135,15 @@ export function AppShell() {
       </aside>
 
       <div className="lg:pl-60">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/85 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8" data-testid="topbar">
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMenuOpen(true)} aria-label="Menü" data-testid="mobile-menu-button"><Menu size={18} /></Button>
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/85 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8" style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }} data-testid="topbar">
+          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMenuOpen(true)} aria-label={t("nav.menu")} data-testid="mobile-menu-button"><Menu size={18} /></Button>
           <div className="lg:hidden"><Brand /></div>
           <p className="hidden text-sm text-muted-foreground lg:block" data-testid="topbar-breadcrumb">{t("brand.name")} <span className="mx-1.5 text-border">/</span> <span className="text-foreground">{current ? t(current.key) : ""}</span></p>
           <div className="ml-auto flex items-center gap-1">
+            <CommandPalette />
+            <CurrencySwitcher />
             <LanguageSwitcher />
-            <Button variant="ghost" size="icon" onClick={toggle} className="text-muted-foreground" aria-label="Temayı değiştir" data-testid="theme-toggle-button">{theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}</Button>
+            <Button variant="ghost" size="icon" onClick={toggle} className="text-muted-foreground" aria-label={t("shell.toggleTheme")} data-testid="theme-toggle-button">{theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}</Button>
             <AlertsPopover alerts={alerts.data ?? []} />
           </div>
         </header>
@@ -147,7 +152,7 @@ export function AppShell() {
         </main>
       </div>
 
-      <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-6 rounded-2xl border border-border bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl lg:hidden" data-testid="mobile-bottom-navigation">
+      <nav className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 grid grid-cols-6 rounded-2xl border border-border bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl lg:hidden" data-testid="mobile-bottom-navigation">
         {NAV_ITEMS.filter((item) => MOBILE_PRIMARY.includes(item.to)).map((item) => {
           const Icon = item.icon;
           return (

@@ -4,7 +4,7 @@ import os
 import httpx
 import pytest
 
-BACKEND_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://unruffled-hamilton-13.preview.emergentagent.com").rstrip("/")
+BACKEND_URL = os.environ.get("REACT_APP_BACKEND_URL", os.environ.get("BACKEND_URL", "http://localhost:8001")).rstrip("/")
 API = f"{BACKEND_URL}/api"
 
 DEMO_EMAIL = "demo@subly.app"
@@ -18,6 +18,12 @@ def session():
     s = httpx.Client(base_url=API, timeout=30.0)
     r = s.post("/auth/login", json={"email": DEMO_EMAIL, "password": DEMO_PASSWORD})
     assert r.status_code == 200, f"login failed: {r.status_code} {r.text}"
+    # The session cookie is Secure+SameSite=None (correct for production HTTPS).
+    # httpx's cookie jar won't re-attach a Secure cookie to a plain http://
+    # localhost request, so subsequent calls on this client would 401 even
+    # though login succeeded. Use the Bearer-token fallback get_current_user()
+    # already supports instead of weakening the cookie's security attributes.
+    s.headers["Authorization"] = f"Bearer {r.cookies.get('session_token')}"
     yield s
     s.close()
 

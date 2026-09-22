@@ -18,10 +18,14 @@ def _user_response(user: dict) -> UserPublic:
     )
 
 
-async def _seed_starter_subscriptions(user_id: str, email: str = "") -> None:
+async def _seed_demo_account_data(user_id: str, email: str = "") -> None:
+    # Starter subscriptions (Netflix/Spotify/YouTube Premium/Google One) and the
+    # richer finance sample are demo-only fixtures. They must never be written
+    # into a real user's own collections — a real new account starts empty.
+    if email != DEMO_EMAIL:
+        return
     await seed_starter_subscriptions(user_id)
-    if email == DEMO_EMAIL:
-        await seed_demo_finance(user_id)
+    await seed_demo_finance(user_id)
 
 
 async def _create_session(user_id: str, response: Response, session_token: str | None = None) -> None:
@@ -41,7 +45,7 @@ async def register(input: AuthRegister, response: Response, request: Request):
         raise HTTPException(status_code=409, detail="Bu e-posta zaten kayıtlı")
     user = {"user_id": f"user_{uuid.uuid4().hex[:12]}", "email": email, "name": input.name, "password_hash": hash_password(input.password), "created_at": datetime.now(timezone.utc).isoformat()}
     await db.users.insert_one(user)
-    await _seed_starter_subscriptions(user["user_id"])
+    await _seed_demo_account_data(user["user_id"], email)
     await _create_session(user["user_id"], response)
     return {"user": _user_response(user)}
 
@@ -56,7 +60,7 @@ async def login(input: AuthCredentials, response: Response, request: Request):
         user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user or not verify_password(input.password, user.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı")
-    await _seed_starter_subscriptions(user["user_id"], email)
+    await _seed_demo_account_data(user["user_id"], email)
     await _create_session(user["user_id"], response)
     return {"user": _user_response(user)}
 
@@ -99,7 +103,7 @@ async def google_session(input: GoogleSessionRequest, response: Response, reques
     else:
         await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"name": profile.get("name") or user.get("name"), "picture": profile.get("picture")}})
         user = {**user, "name": profile.get("name") or user.get("name"), "picture": profile.get("picture")}
-    await _seed_starter_subscriptions(user["user_id"])
+    await _seed_demo_account_data(user["user_id"], email)
     provider_token = profile.get("session_token")
     if not provider_token:
         raise HTTPException(status_code=401, detail="Google oturum anahtarı bulunamadı")

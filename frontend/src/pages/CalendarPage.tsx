@@ -3,12 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { money, monthIso } from "@/lib/format";
+import { useMoney } from "@/lib/currency";
+import { useT } from "@/lib/i18n";
 import type { CalendarEvent, CalendarResponse } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PageHeader, Panel, StatCard } from "@/components/shared/ui-bits";
 
-const WEEKDAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 const KIND_STYLE: Record<CalendarEvent["kind"], string> = { bill: "bg-amber-500/15 text-amber-600 dark:text-amber-300", subscription: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-300", income: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300" };
 
 function shiftMonth(key: string, delta: number) {
@@ -18,8 +19,12 @@ function shiftMonth(key: string, delta: number) {
 }
 
 export default function CalendarPage() {
+  const { t } = useT();
+  const WEEKDAYS = [t("calendar.weekday.mon"), t("calendar.weekday.tue"), t("calendar.weekday.wed"), t("calendar.weekday.thu"), t("calendar.weekday.fri"), t("calendar.weekday.sat"), t("calendar.weekday.sun")];
+  const KIND_LABEL: Record<CalendarEvent["kind"], string> = { bill: t("calendar.kind.bill"), subscription: t("calendar.kind.subscription"), income: t("calendar.kind.income") };
   const [month, setMonth] = useState(monthIso());
   const { data } = useQuery({ queryKey: ["calendar", month], queryFn: () => apiGet<CalendarResponse>(`/calendar?month=${month}`), retry: false });
+  const { display } = useMoney();
   const [selected, setSelected] = useState<string | null>(null);
 
   const grid = useMemo(() => {
@@ -44,17 +49,17 @@ export default function CalendarPage() {
 
   return (
     <div data-testid="calendar-page">
-      <PageHeader eyebrow="Takvim" title="Ödeme takvimi" description="Hangi gün ne kadar ödeyeceğini tek bakışta gör. Faturalar, abonelik yenilemeleri ve beklenen gelirler birlikte." testId="calendar-header"
+      <PageHeader eyebrow={t("calendar.eyebrow")} title={t("calendar.title")} description={t("calendar.description")} testId="calendar-header"
         actions={<div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
-          <Button variant="ghost" size="icon-sm" onClick={() => { setMonth((m) => shiftMonth(m, -1)); setSelected(null); }} aria-label="Önceki ay" data-testid="calendar-prev-month"><ChevronLeft size={16} /></Button>
+          <Button variant="ghost" size="icon-sm" onClick={() => { setMonth((m) => shiftMonth(m, -1)); setSelected(null); }} aria-label={t("calendar.prevMonth")} data-testid="calendar-prev-month"><ChevronLeft size={16} /></Button>
           <span className="min-w-32 text-center text-sm font-medium" data-testid="calendar-month-label">{data?.label ?? month}</span>
-          <Button variant="ghost" size="icon-sm" onClick={() => { setMonth((m) => shiftMonth(m, 1)); setSelected(null); }} aria-label="Sonraki ay" data-testid="calendar-next-month"><ChevronRight size={16} /></Button>
+          <Button variant="ghost" size="icon-sm" onClick={() => { setMonth((m) => shiftMonth(m, 1)); setSelected(null); }} aria-label={t("calendar.nextMonth")} data-testid="calendar-next-month"><ChevronRight size={16} /></Button>
         </div>} />
 
       <section className="mb-6 grid gap-4 sm:grid-cols-3" data-testid="calendar-stats">
-        <StatCard label="Bu ay çıkan" value={money(data?.total_out ?? 0)} detail="Fatura + abonelik" icon={<ChevronRight size={17} />} tone="amber" testId="calendar-total-out" />
-        <StatCard label="Bu ay giren" value={money(data?.total_in ?? 0)} detail="Beklenen gelir" icon={<ChevronLeft size={17} />} tone="emerald" testId="calendar-total-in" />
-        <StatCard label="Ödeme günü" value={String([...byDay.keys()].filter((d) => byDay.get(d)?.some((e) => e.kind !== "income")).length)} detail="Ödeme olan gün sayısı" icon={<ChevronRight size={17} />} tone="cyan" testId="calendar-payment-days" />
+        <StatCard label={t("calendar.stat.out")} value={display(data?.total_out ?? 0)} detail={t("calendar.stat.outDetail")} icon={<ChevronRight size={17} />} tone="amber" testId="calendar-total-out" />
+        <StatCard label={t("calendar.stat.in")} value={display(data?.total_in ?? 0)} detail={t("calendar.stat.inDetail")} icon={<ChevronLeft size={17} />} tone="emerald" testId="calendar-total-in" />
+        <StatCard label={t("calendar.stat.days")} value={String([...byDay.keys()].filter((d) => byDay.get(d)?.some((e) => e.kind !== "income")).length)} detail={t("calendar.stat.daysDetail")} icon={<ChevronRight size={17} />} tone="cyan" testId="calendar-payment-days" />
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
@@ -81,14 +86,14 @@ export default function CalendarPage() {
           </div>
         </Panel>
 
-        <Panel title={selected ? `${Number(selected.slice(-2))} ${data?.label ?? ""}` : "Ay boyunca"} description={selected ? "Seçili gün" : "Tüm hareketler · günü seçmek için takvime tıkla"} testId="calendar-events-card"
-          action={selected && <Button variant="ghost" size="sm" onClick={() => setSelected(null)} data-testid="calendar-clear-selection">Tümü</Button>}>
-          {listed.length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground" data-testid="calendar-events-empty">Bu dönemde hareket yok.</p> : (
+        <Panel title={selected ? `${Number(selected.slice(-2))} ${data?.label ?? ""}` : t("calendar.throughMonth")} description={selected ? t("calendar.selectedDay") : t("calendar.allEvents")} testId="calendar-events-card"
+          action={selected && <Button variant="ghost" size="sm" onClick={() => setSelected(null)} data-testid="calendar-clear-selection">{t("calendar.clearSelection")}</Button>}>
+          {listed.length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground" data-testid="calendar-events-empty">{t("calendar.noEvents")}</p> : (
             <ul className="divide-y divide-border">
               {listed.map((e) => (
                 <li key={`${e.kind}-${e.id}-${e.date}`} className="flex items-center gap-3 py-2.5" data-testid={`calendar-event-${e.id}`}>
                   <span className="w-7 shrink-0 font-mono text-sm font-semibold text-muted-foreground">{Number(e.date.slice(-2))}</span>
-                  <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-medium", KIND_STYLE[e.kind])}>{e.kind === "bill" ? "Fatura" : e.kind === "subscription" ? "Abonelik" : "Gelir"}</span>
+                  <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-medium", KIND_STYLE[e.kind])}>{KIND_LABEL[e.kind]}</span>
                   <p className="min-w-0 flex-1 truncate text-sm">{e.title}</p>
                   <p className={cn("font-mono text-sm font-semibold", e.kind === "income" && "text-emerald-500")}>{e.kind === "income" ? "+" : ""}{money(e.amount, e.currency, e.currency === "TRY" ? 0 : 2)}</p>
                 </li>
