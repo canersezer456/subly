@@ -96,6 +96,9 @@ async def google_session(input: GoogleSessionRequest, response: Response, reques
     email = str(profile.get("email", "")).lower()
     if not email:
         raise HTTPException(status_code=400, detail="Google hesabında e-posta bulunamadı")
+    provider_token = profile.get("session_token")
+    if not isinstance(provider_token, str) or not provider_token.strip():
+        raise HTTPException(status_code=401, detail="Google oturum anahtarı bulunamadı")
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user:
         user = {"user_id": f"user_{uuid.uuid4().hex[:12]}", "email": email, "name": profile.get("name") or "Subly kullanıcısı", "picture": profile.get("picture"), "created_at": datetime.now(timezone.utc).isoformat()}
@@ -104,8 +107,5 @@ async def google_session(input: GoogleSessionRequest, response: Response, reques
         await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"name": profile.get("name") or user.get("name"), "picture": profile.get("picture")}})
         user = {**user, "name": profile.get("name") or user.get("name"), "picture": profile.get("picture")}
     await _seed_demo_account_data(user["user_id"], email)
-    provider_token = profile.get("session_token")
-    if not provider_token:
-        raise HTTPException(status_code=401, detail="Google oturum anahtarı bulunamadı")
     await _create_session(user["user_id"], response, provider_token)
     return {"user": _user_response(user)}

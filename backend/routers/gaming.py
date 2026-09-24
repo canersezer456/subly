@@ -39,6 +39,7 @@ Endpoints:
 """
 
 import csv
+import itertools
 import io
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -442,6 +443,10 @@ def _admin_row(base_offer: dict, override: dict | None, base_product: dict, base
     )
 
 
+# changed_at has coarse clock resolution (Windows ~15ms), so three fast writes can
+# share one timestamp; a monotonic tiebreaker keeps history ordering deterministic.
+_HISTORY_SEQ = itertools.count(1)
+
 _OVERRIDE_FIELDS = ("price_try", "original_price_try", "delivery", "campaign", "url")
 
 
@@ -472,6 +477,7 @@ async def _record_history(user_id: str, offer_id: str, before: dict | None, afte
         "before": _snapshot(before),
         "after": _snapshot(after),
         "changed_at": datetime.now(timezone.utc).isoformat(),
+        "seq": next(_HISTORY_SEQ),
     })
 
 
@@ -603,7 +609,7 @@ async def admin_catalog_history(offer_id: str | None = Query(default=None), limi
     query: dict = {"user_id": user["user_id"]}
     if offer_id:
         query["offer_id"] = offer_id
-    docs = await db.gaming_price_history.find(query, {"_id": 0}).sort("changed_at", -1).to_list(limit)
+    docs = await db.gaming_price_history.find(query, {"_id": 0}).sort([("changed_at", -1), ("seq", -1)]).to_list(limit)
     return [GamingCatalogHistoryEntry(**doc) for doc in docs]
 
 

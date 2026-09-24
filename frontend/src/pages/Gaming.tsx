@@ -7,7 +7,8 @@ import { money, monthIso, percent } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import type { GamingBudgetStatus, GamingDeal, GamingEarningsSummary, GamingGame, GamingHome, GamingSearchResponse, GamingSummary, GamingWatch } from "@/lib/types";
 import { PageHeader, Panel, ProgressBar } from "@/components/shared/ui-bits";
-import { GameMark } from "@/components/brand/GameMark";
+import { GameCover, GameMark } from "@/components/brand/GameMark";
+import { hasGameCover } from "@/lib/gameAssets";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -26,13 +27,27 @@ function reliabilityColor(rel: string) {
       : "border-amber-500/30 bg-amber-500/10 text-amber-500";
 }
 
-function DealCard({ deal, testId }: { deal: GamingDeal; testId: string }) {
+function DealCard({ deal, testId, t }: { deal: GamingDeal; testId: string; t: Translate }) {
   return (
     <Link
       to={`/gaming/products/${deal.product_id}`}
       className="group flex flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-[border-color,transform] hover:-translate-y-0.5 hover:border-primary/40"
       data-testid={testId}
     >
+      {/* Game artwork when a verified cover exists; otherwise the game's logo on its accent tint. */}
+      <div
+        className="relative -mx-4 -mt-4 aspect-[16/7] overflow-hidden rounded-t-xl border-b border-border bg-muted"
+        style={{ backgroundImage: `linear-gradient(135deg, ${deal.accent_color}33, transparent 70%)` }}
+        data-testid={`${testId}-media`}
+      >
+        {hasGameCover(deal.game_slug) ? (
+          <GameCover slug={deal.game_slug} alt={t("gaming.asset.coverAlt", { name: deal.game_name })} testId={`${testId}-cover`} />
+        ) : (
+          <div className="grid h-full place-items-center">
+            <GameMark slug={deal.game_slug} alt={t("gaming.asset.logoAlt", { name: deal.game_name })} size={48} testId={`${testId}-logo`} />
+          </div>
+        )}
+      </div>
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-[10px] font-medium uppercase tracking-wider" style={{ color: deal.accent_color }}>
@@ -77,7 +92,7 @@ function GameTile({ game, testId, t }: { game: GamingGame; testId: string; t: Tr
       className="group flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-[border-color,transform] hover:-translate-y-0.5 hover:border-primary/40"
       data-testid={testId}
     >
-      <GameMark name={game.name} iconUrl={game.icon_url} accentColor={game.accent_color} size={44} />
+      <GameMark slug={game.slug} alt={t("gaming.asset.logoAlt", { name: game.name })} size={44} testId={`${testId}-logo`} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-foreground">{game.name}</p>
         <p className="truncate text-[11px] text-muted-foreground">
@@ -216,7 +231,7 @@ export default function Gaming() {
         <Panel title={t("gaming.todayDeals.title")} description={t("gaming.todayDeals.description")} testId="gaming-today-deals">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {data.today_deals.map((d) => (
-              <DealCard key={d.offer_id} deal={d} testId={`gaming-today-deal-${d.offer_id}`} />
+              <DealCard key={d.offer_id} deal={d} testId={`gaming-today-deal-${d.offer_id}`} t={t} />
             ))}
           </div>
         </Panel>
@@ -294,7 +309,7 @@ export default function Gaming() {
         </p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {sectionDeals.map((d) => (
-            <DealCard key={d.offer_id} deal={d} testId={`gaming-section-deal-${d.offer_id}`} />
+            <DealCard key={d.offer_id} deal={d} testId={`gaming-section-deal-${d.offer_id}`} t={t} />
           ))}
           {sectionDeals.length === 0 && <p className="text-xs text-muted-foreground">{t("gaming.section.empty")}</p>}
         </div>

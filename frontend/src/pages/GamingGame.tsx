@@ -6,7 +6,8 @@ import { money } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import type { GamingGameDetail } from "@/lib/types";
 import { PageHeader, Panel } from "@/components/shared/ui-bits";
-import { GameMark } from "@/components/brand/GameMark";
+import { GameCover, GameMark } from "@/components/brand/GameMark";
+import { hasGameCover } from "@/lib/gameAssets";
 
 const TAG_COLOR: Record<string, string> = {
   popular: "bg-fuchsia-500/12 text-fuchsia-400 border-fuchsia-500/25",
@@ -35,19 +36,27 @@ export default function GamingGame() {
         <ArrowLeft size={13} /> {t("gamingGame.back")}
       </Link>
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 sm:flex-row sm:items-center" data-testid="gaming-game-hero" style={{ borderColor: `${g.accent_color}55` }}>
-        <GameMark name={g.name} iconUrl={g.icon_url} accentColor={g.accent_color} size={64} rounded="2xl" testId="gaming-game-icon" />
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] uppercase tracking-wider" style={{ color: g.accent_color }}>{g.category} · {g.currency}</p>
-          <h1 className="font-heading text-2xl font-bold text-foreground" data-testid="gaming-game-title">{g.name}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{g.tagline}</p>
-        </div>
-        {g.best_price_try != null && (
-          <div className="text-right">
-            <p className="text-[11px] text-muted-foreground">{t("gamingGame.startingFrom")}</p>
-            <p className="font-mono text-lg font-bold text-foreground" data-testid="gaming-game-start-price">{money(g.best_price_try, "TRY", 0)}</p>
+      <div className="overflow-hidden rounded-2xl border border-border bg-card" data-testid="gaming-game-hero" style={{ borderColor: `${g.accent_color}55` }}>
+        {hasGameCover(g.slug) && (
+          <div className="relative aspect-[16/9] max-h-72 w-full overflow-hidden bg-muted sm:aspect-[21/9]" data-testid="gaming-game-cover-wrap">
+            <GameCover slug={g.slug} alt={t("gaming.asset.coverAlt", { name: g.name })} testId="gaming-game-cover" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card via-card/10 to-transparent" aria-hidden="true" />
           </div>
         )}
+        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
+          <GameMark slug={g.slug} alt={t("gaming.asset.logoAlt", { name: g.name })} size={64} rounded="2xl" testId="gaming-game-icon" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] uppercase tracking-wider" style={{ color: g.accent_color }}>{g.category} · {g.currency}</p>
+            <h1 className="font-heading text-2xl font-bold text-foreground" data-testid="gaming-game-title">{g.name}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{g.tagline}</p>
+          </div>
+          {g.best_price_try != null && (
+            <div className="text-right">
+              <p className="text-[11px] text-muted-foreground">{t("gamingGame.startingFrom")}</p>
+              <p className="font-mono text-lg font-bold text-foreground" data-testid="gaming-game-start-price">{money(g.best_price_try, "TRY", 0)}</p>
+            </div>
+          )}
+        </div>
       </div>
 
       <PageHeader eyebrow={t("gamingGame.eyebrow")} title={t("gamingGame.title")} description={t("gamingGame.description")} testId="gaming-products-header" />

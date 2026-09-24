@@ -22,6 +22,10 @@ INDEXES: dict[str, list[IndexModel]] = {
     "users": [IndexModel([("email", ASCENDING)], name="email_unique", unique=True)],
     "user_sessions": [IndexModel([("session_token", ASCENDING)], name="session_token_unique", unique=True), IndexModel([("expires_at", ASCENDING)], name="expires_at")],
     "subscriptions": [IndexModel([("user_id", ASCENDING), ("renewal_date", ASCENDING)], name="user_renewal")],
+    "subscription_candidates": [IndexModel([("user_id", ASCENDING), ("status", ASCENDING)], name="user_status"), IndexModel([("user_id", ASCENDING), ("dedupe_key", ASCENDING)], name="user_dedupe")],
+    "email_connections": [IndexModel([("user_id", ASCENDING), ("provider", ASCENDING)], name="user_provider_unique", unique=True)],
+    # expires_at is a datetime: Mongo's TTL monitor removes abandoned OAuth flows.
+    "email_oauth_states": [IndexModel([("state", ASCENDING)], name="state_unique", unique=True), IndexModel([("expires_at", ASCENDING)], name="expires_ttl", expireAfterSeconds=0)],
     "incomes": [IndexModel([("user_id", ASCENDING), ("date", DESCENDING)], name="user_date")],
     "expenses": [IndexModel([("user_id", ASCENDING), ("date", DESCENDING)], name="user_date")],
     "bills": [IndexModel([("user_id", ASCENDING), ("due_date", ASCENDING)], name="user_due")],

@@ -20,6 +20,11 @@ export interface RegisterPayload extends AuthPayload {
 
 // ---- Subscriptions (mirrors models/subscription.py) ----------------------
 
+export type BillingCycle = "monthly" | "quarterly" | "yearly";
+export type SubscriptionStatus = "active" | "paused" | "cancelled" | "expired";
+/** "legacy" = created before source tracking; never stored, reported by the API. */
+export type SubscriptionSource = "manual" | "email" | "transaction" | "import" | "legacy";
+
 export interface SubscriptionPayload {
   name: string;
   category: string;
@@ -29,15 +34,201 @@ export interface SubscriptionPayload {
   payment_method: string;
   cancellation_url: string;
   source?: string;
-  billing_cycle: "monthly" | "yearly";
+  billing_cycle: BillingCycle;
   usage: "active" | "rarely" | "unused";
+  status?: SubscriptionStatus;
+  provider_id?: string | null;
+  plan?: string | null;
+  note?: string;
+  /** Send only after the user saw the "possible duplicate" warning. */
+  confirm_duplicate?: boolean;
+}
+
+export interface PriceHistoryEntry {
+  price: number;
+  currency: string;
+  changed_at: string;
 }
 
 export interface Subscription extends SubscriptionPayload {
   id: string;
-  source: string;
-  status: string;
+  source: SubscriptionSource;
+  status: SubscriptionStatus;
   created_at: string;
+  provider_id: string | null;
+  plan: string | null;
+  note: string;
+  legacy: boolean;
+  legacy_reviewed: boolean;
+  candidate_id: string | null;
+  price_history: PriceHistoryEntry[];
+}
+
+export interface Provider {
+  id: string;
+  family: string;
+  name: string;
+  category: string;
+  subscription_category: string;
+  aliases: string[];
+  plans: string[];
+  manage_url: string;
+  merchant_patterns: string[];
+  email_domains: string[];
+  default_currency: string | null;
+  pricing: { status: "not_tracked" | string };
+  note: string | null;
+}
+
+export interface DuplicateMatch {
+  id: string;
+  name: string;
+  price: number | null;
+  currency: string;
+  status: string;
+}
+
+/** Body of a 409 from create/accept when a matching subscription may already exist. */
+export interface DuplicateConflict {
+  code: "possible_duplicate";
+  message: string;
+  matches: DuplicateMatch[];
+}
+
+export type EvidenceType = "email" | "transaction" | "manual_import" | "other";
+
+export interface CandidateEvidence {
+  type: EvidenceType;
+  source: string;
+  summary: string;
+  observed_at: string;
+  merchant?: string | null;
+  sender_domain?: string | null;
+  signal?: string | null;
+  count?: number | null;
+  cadence?: string | null;
+  first_seen?: string | null;
+}
+
+export interface DiscoveryCandidate {
+  id: string;
+  provider_id: string | null;
+  provider_name: string;
+  alternatives: string[];
+  ambiguous: boolean;
+  suggested_plan: string | null;
+  suggested_price: number | null;
+  currency: string | null;
+  billing_cycle: BillingCycle | null;
+  renewal_date: string | null;
+  evidence_type: string;
+  evidence_source: string;
+  evidence: CandidateEvidence[];
+  evidence_types: EvidenceType[];
+  confidence: number;
+  confidence_label: "high" | "medium" | "review";
+  explanation: string;
+  status: "pending" | "accepted" | "rejected";
+  possible_duplicates: DuplicateMatch[];
+  accepted_subscription_id: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface CandidateImportResponse {
+  parsed_transactions: number;
+  skipped_lines: number;
+  created: number;
+  merged: number;
+  skipped_rejected: number;
+  already_accepted: number;
+  candidates: DiscoveryCandidate[];
+}
+
+export interface CandidateAcceptPayload {
+  provider_id?: string | null;
+  name?: string;
+  plan?: string | null;
+  price?: number;
+  currency?: string;
+  billing_cycle?: BillingCycle;
+  renewal_date?: string;
+  payment_method?: string;
+  note?: string;
+  confirm_duplicate?: boolean;
+}
+
+export interface EmailSyncSummary {
+  partial?: boolean;
+  skipped?: number;
+  scanned: number;
+  matched: number;
+  created: number;
+  merged: number;
+  skipped_rejected: number;
+  already_accepted: number;
+}
+
+/** connected = linked and working · available = server configured, user not linked ·
+ *  reauth_required = grant revoked/expired · not_configured = no OAuth client on this server. */
+export type MailboxState = "connected" | "available" | "reauth_required" | "not_configured";
+
+export interface MailboxStatus {
+  id: "gmail" | "outlook";
+  name: string;
+  configured: boolean;
+  connected: boolean;
+  state: MailboxState;
+  scope: string;
+  connected_at: string | null;
+  last_sync_at: string | null;
+  last_sync: EmailSyncSummary | null;
+}
+
+export interface DiscoveryStatus {
+  email: { available: boolean; connected: boolean; state: string; adapters: MailboxStatus[] };
+  transaction: { available: boolean; connected: boolean; state: string; adapters: { id: string; name: string; configured: boolean; connected: boolean; state: string }[] };
+  manual_import: { available: boolean; connected: boolean; state: string };
+  pending_candidates: number;
+}
+
+export interface EmailSyncResponse extends EmailSyncSummary {
+  candidates: DiscoveryCandidate[];
+}
+
+export interface InsightUpcoming {
+  id: string;
+  name: string;
+  date: string;
+  days_until: number;
+  amount: number;
+  currency: string;
+  billing_cycle: BillingCycle;
+}
+
+export interface InsightBucket {
+  key: string;
+  count: number;
+  monthly_try: number;
+}
+
+export interface SubscriptionInsights {
+  active_count: number;
+  total_count: number;
+  monthly_total_try: number;
+  yearly_projection_try: number;
+  upcoming: InsightUpcoming[];
+  next_renewal: InsightUpcoming | null;
+  unused_count: number;
+  rarely_count: number;
+  unused_monthly_try: number;
+  by_category: InsightBucket[];
+  by_payment_method: InsightBucket[];
+  yearly_subscriptions: { id: string; name: string; price: number; currency: string; monthly_equivalent_try: number }[];
+  price_changes: { id: string; name: string; previous_price: number; current_price: number; currency: string; changed_at: string; change_percent: number }[];
+  overlaps: { category: string; label: string; count: number; names: string[]; monthly_try: number; message: string }[];
+  legacy_unreviewed: number;
+  rates: Record<string, number>;
 }
 
 export interface MockScanResponse {

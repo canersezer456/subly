@@ -8,6 +8,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { setFormatLocale } from "@/lib/format";
+import { SUBSCRIPTION_HUB_EN, SUBSCRIPTION_HUB_TR } from "@/lib/i18n.subscriptionHub";
 
 export type Lang = "tr" | "en" | "de" | "es" | "fr";
 
@@ -23,6 +24,11 @@ export type Dict = Record<string, string>;
 
 const STRINGS: Record<Lang, Dict> = {
   tr: {
+    ...SUBSCRIPTION_HUB_TR,
+    "common.error": "Veriler yüklenemedi. Gösterilen boşluk kayıt bulunmadığı anlamına gelmez.",
+    "common.retry": "Tekrar dene",
+    "settings.emailDiscovery": "E-posta ile abonelik keşfi",
+    "subscriptions.discoveryUnavailable": "Google ile giriş yapmak posta kutusu erişimi sağlamaz. Gmail/Outlook izinli bağlantısı henüz mevcut değil; tarama yapılmaz ve örnek abonelik üretilmez. Aboneliklerinizi elle ekleyebilirsiniz.",
     // brand + tagline
     "brand.name": "Subly",
     "brand.tagline": "Finans işletim sistemi",
@@ -564,6 +570,8 @@ const STRINGS: Record<Lang, Dict> = {
     "gaming.watches.goTo": "Ürün sayfasına git",
     "gaming.allGames.title": "Tüm oyunlar",
     "gaming.allGames.description": "Kategorine göre keşfet",
+    "gaming.asset.logoAlt": "{name} logosu",
+    "gaming.asset.coverAlt": "{name} kapak görseli",
     "gaming.sellers.title": "Güvenilir satıcılar",
     "gaming.sellers.description": "Güvenilirlik, teslimat ve iade koşulları",
     "gaming.sellers.delivery": "Teslimat:",
@@ -832,6 +840,11 @@ const STRINGS: Record<Lang, Dict> = {
     "paymentMethod.autoPay": "Otomatik ödeme",
   },
   en: {
+    ...SUBSCRIPTION_HUB_EN,
+    "common.error": "Data could not be loaded. This does not mean there are no records.",
+    "common.retry": "Retry",
+    "settings.emailDiscovery": "Email subscription discovery",
+    "subscriptions.discoveryUnavailable": "Google sign-in does not grant mailbox access. A permission-based Gmail/Outlook connection is not available yet. No scan runs and no sample subscriptions are generated. You can add your subscriptions manually.",
     "brand.name": "Subly",
     "brand.tagline": "Finance operating system",
     "brand.loading": "Loading Subly…",
@@ -1367,6 +1380,8 @@ const STRINGS: Record<Lang, Dict> = {
     "gaming.watches.goTo": "Go to product page",
     "gaming.allGames.title": "All games",
     "gaming.allGames.description": "Explore by category",
+    "gaming.asset.logoAlt": "{name} logo",
+    "gaming.asset.coverAlt": "{name} cover art",
     "gaming.sellers.title": "Trusted sellers",
     "gaming.sellers.description": "Reliability, delivery and return terms",
     "gaming.sellers.delivery": "Delivery:",
@@ -2156,6 +2171,8 @@ const STRINGS: Record<Lang, Dict> = {
     "gaming.watches.goTo": "Zur Produktseite",
     "gaming.allGames.title": "Alle Spiele",
     "gaming.allGames.description": "Nach Kategorie entdecken",
+    "gaming.asset.logoAlt": "{name}-Logo",
+    "gaming.asset.coverAlt": "{name} Titelbild",
     "gaming.sellers.title": "Vertrauenswürdige Verkäufer",
     "gaming.sellers.description": "Zuverlässigkeit, Lieferung und Rückgabebedingungen",
     "gaming.sellers.delivery": "Lieferung:",
@@ -2936,6 +2953,8 @@ const STRINGS: Record<Lang, Dict> = {
     "gaming.watches.goTo": "Ir a la página del producto",
     "gaming.allGames.title": "Todos los juegos",
     "gaming.allGames.description": "Explora por categoría",
+    "gaming.asset.logoAlt": "Logo de {name}",
+    "gaming.asset.coverAlt": "Imagen de portada de {name}",
     "gaming.sellers.title": "Vendedores de confianza",
     "gaming.sellers.description": "Fiabilidad, entrega y condiciones de devolución",
     "gaming.sellers.delivery": "Entrega:",
@@ -3716,6 +3735,8 @@ const STRINGS: Record<Lang, Dict> = {
     "gaming.watches.goTo": "Aller à la page du produit",
     "gaming.allGames.title": "Tous les jeux",
     "gaming.allGames.description": "Explorer par catégorie",
+    "gaming.asset.logoAlt": "Logo de {name}",
+    "gaming.asset.coverAlt": "Visuel de {name}",
     "gaming.sellers.title": "Vendeurs de confiance",
     "gaming.sellers.description": "Fiabilité, livraison et conditions de retour",
     "gaming.sellers.delivery": "Livraison :",

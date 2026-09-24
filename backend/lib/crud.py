@@ -14,10 +14,10 @@ def crud_router(*, prefix: str, collection: str, create_model, update_model, out
     coll = db[collection]
 
     @router.get("", response_model=list[out_model])
-    async def list_items(month: str | None = Query(default=None, max_length=7), user: dict = Depends(get_current_user)):
+    async def list_items(month: str | None = Query(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"), user: dict = Depends(get_current_user)):
         query: dict = {"user_id": user["user_id"]}
         if month:
-            query[date_field] = {"$regex": f"^{month}"}
+            query["month" if collection == "budgets" else date_field] = {"$regex": f"^{month}"}
         docs = await coll.find(query, {"_id": 0}).sort(date_field, -1 if sort_desc else 1).to_list(2000)
         return [out_model(**doc) for doc in docs]
 

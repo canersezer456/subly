@@ -1,35 +1,26 @@
 import { useState } from "react";
+import { Gamepad2 } from "lucide-react";
+import { gameAsset } from "@/lib/gameAssets";
 import { cn } from "@/lib/utils";
 
 /**
- * Game icon with a safe fallback — never a broken browser image glyph.
+ * Game logo tile, resolved from the bundled asset map (`@/lib/gameAssets`)
+ * by catalog slug — never from the backend's dead Wikimedia `icon_url`.
  *
- * The backend's game catalog (backend/lib/gaming_catalog.py) hotlinks game
- * logos directly from upload.wikimedia.org thumbnail URLs. Verified (curl,
- * every one) that all of them now 400 — the underlying Commons files were
- * renamed/moved since the catalog was authored; git history shows this was
- * never any different (baked in from the first commit). Hotlinking a third
- * party's exact thumbnail path is inherently fragile and out of our control,
- * so this component does not depend on it rendering successfully.
- *
- * Render order: a colored initial-letter badge (using the game's own
- * `accentColor`, mirroring the sidebar's user-avatar-initial fallback and
- * ProviderMark's colored-surface pattern) is always in the DOM first. The
- * <img> — if a url is given — loads on top of it, invisible (opacity-0)
- * until `onLoad` confirms success, then fades in and covers the letter. On
- * `onError` the <img> unmounts entirely. Because the image is never visible
- * before a confirmed successful load, no failed/broken image state can ever
- * flash on screen — this holds regardless of whether `iconUrl` ever starts
- * resolving again.
+ * A neutral gamepad placeholder is always in the DOM first. The <img> loads
+ * on top of it, invisible (opacity-0) until `onLoad` confirms success; on
+ * `onError` it unmounts. So neither a broken-image glyph nor a guessed letter
+ * can ever show: a game without a verified logo simply keeps the placeholder.
  */
-export function GameMark({ name, iconUrl, accentColor, size = 44, rounded = "xl", testId }: {
-  name: string;
-  iconUrl?: string | null;
-  accentColor: string;
+export function GameMark({ slug, alt, size = 44, rounded = "xl", testId }: {
+  slug: string;
+  /** Accessible name, e.g. "Valorant logosu". */
+  alt: string;
   size?: number;
   rounded?: "lg" | "xl" | "2xl";
   testId?: string;
 }) {
+  const logo = gameAsset(slug)?.logo;
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const showImage = loaded && !failed;
@@ -37,25 +28,60 @@ export function GameMark({ name, iconUrl, accentColor, size = 44, rounded = "xl"
 
   return (
     <span
-      className={cn("relative grid shrink-0 place-items-center overflow-hidden", roundedClass)}
-      style={{ width: size, height: size, backgroundColor: `${accentColor}22`, color: accentColor }}
+      className={cn("relative grid shrink-0 place-items-center overflow-hidden bg-muted text-muted-foreground", roundedClass)}
+      style={{ width: size, height: size }}
       data-testid={testId}
-      aria-label={name}
+      data-asset={showImage ? "logo" : "placeholder"}
+      role="img"
+      aria-label={alt}
     >
-      <span className="font-heading font-bold" style={{ fontSize: Math.round(size * 0.42) }} aria-hidden="true">
-        {name.slice(0, 1).toUpperCase()}
-      </span>
-      {iconUrl && !failed && (
+      <Gamepad2 size={Math.round(size * 0.5)} aria-hidden="true" className={cn("transition-opacity", showImage && "opacity-0")} />
+      {logo && !failed && (
         <img
-          src={iconUrl}
+          src={logo}
           alt=""
           aria-hidden="true"
+          width={size}
+          height={size}
+          decoding="async"
           loading="lazy"
+          draggable={false}
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className={cn("absolute inset-0 h-full w-full object-contain p-1.5 transition-opacity duration-150", showImage ? "opacity-100" : "opacity-0")}
+          className={cn("absolute inset-0 h-full w-full object-cover transition-opacity duration-150", showImage ? "opacity-100" : "opacity-0")}
         />
       )}
     </span>
+  );
+}
+
+/**
+ * Landscape game artwork (hero / deal cards). Renders nothing until the image
+ * has loaded, and nothing at all when the game has no verified cover or the
+ * file fails — the caller's own background shows through instead.
+ */
+export function GameCover({ slug, alt, className, testId }: {
+  slug: string;
+  /** Accessible description, e.g. "PUBG Mobile kapak görseli". */
+  alt: string;
+  className?: string;
+  testId?: string;
+}) {
+  const cover = gameAsset(slug)?.cover;
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  if (!cover || failed) return null;
+  return (
+    <img
+      src={cover}
+      alt={alt}
+      decoding="async"
+      loading="lazy"
+      draggable={false}
+      onLoad={() => setLoaded(true)}
+      onError={() => setFailed(true)}
+      data-testid={testId}
+      className={cn("h-full w-full object-cover transition-opacity duration-200", loaded ? "opacity-100" : "opacity-0", className)}
+    />
   );
 }

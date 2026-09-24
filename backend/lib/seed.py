@@ -1,4 +1,4 @@
-"""Starter data. Subscriptions are seeded for every new account; the richer finance sample only for the demo account."""
+"""Demo-only fixtures. routers/auth.py seeds these exclusively for DEMO_EMAIL; a real account starts empty."""
 
 import uuid
 from datetime import datetime, timedelta, timezone

@@ -60,30 +60,41 @@ def next_occurrence(anchor: date, frequency: str, floor: date, strict: bool = Fa
         if anchor > floor or (anchor == floor and not strict):
             return anchor
         return None
-    current = anchor
+    months = max(0, (floor.year - anchor.year) * 12 + floor.month - anchor.month)
+    cycle = months // step
+    current = add_months(anchor, cycle * step)
     while current < floor or (strict and current == floor):
-        current = add_months(current, step)
+        cycle += 1
+        current = add_months(anchor, cycle * step)
     return current
+
+
+SUB_CYCLES = ("monthly", "quarterly", "yearly")
+
+
+def sub_cycle(sub: dict) -> str:
+    cycle = sub.get("billing_cycle")
+    return cycle if cycle in SUB_CYCLES else "monthly"
 
 
 def sub_monthly(sub: dict) -> float:
     price = to_try(sub.get("price", 0), sub.get("currency", "TRY"))
-    return round(price / 12, 2) if sub.get("billing_cycle") == "yearly" else price
+    months = FREQ_MONTHS[sub_cycle(sub)]
+    return round(price / months, 2) if months != 1 else price
 
 
 def sub_next_renewal(sub: dict, floor: date) -> date:
-    step = "yearly" if sub.get("billing_cycle") == "yearly" else "monthly"
-    return next_occurrence(parse(sub["renewal_date"]), step, floor) or floor
+    return next_occurrence(parse(sub["renewal_date"]), sub_cycle(sub), floor) or floor
 
 
 async def load_user_data(user_id: str) -> dict:
     q = {"user_id": user_id}
     incomes, expenses, bills, budgets, subscriptions = await asyncio.gather(
-        db.incomes.find(q, {"_id": 0}).to_list(2000),
-        db.expenses.find(q, {"_id": 0}).to_list(5000),
-        db.bills.find(q, {"_id": 0}).to_list(1000),
-        db.budgets.find(q, {"_id": 0}).to_list(500),
-        db.subscriptions.find(q, {"_id": 0}).to_list(500),
+        db.incomes.find(q, {"_id": 0}).to_list(None),
+        db.expenses.find(q, {"_id": 0}).to_list(None),
+        db.bills.find(q, {"_id": 0}).to_list(None),
+        db.budgets.find(q, {"_id": 0}).to_list(None),
+        db.subscriptions.find(q, {"_id": 0}).to_list(None),
     )
     return {"incomes": incomes, "expenses": expenses, "bills": bills, "budgets": budgets, "subscriptions": subscriptions}
 
@@ -115,7 +126,7 @@ def bills_for_month(bills: list[dict], key: str) -> list[tuple[dict, date]]:
 
 
 def active_subs(subs: list[dict]) -> list[dict]:
-    return [s for s in subs if s.get("status") != "cancelled"]
+    return [s for s in subs if s.get("status", "active") == "active"]
 
 
 def category_breakdown(data: dict, key: str) -> list[dict]:
@@ -144,7 +155,8 @@ def upcoming_payments(data: dict, ref: date, horizon_days: int = 30) -> list[dic
     for bill in data["bills"]:
         anchor = parse(bill["due_date"])
         paid = bill.get("status") == "paid"
-        nxt = next_occurrence(anchor, bill.get("frequency", "monthly"), ref, strict=paid)
+        floor = max(ref, anchor) if paid else ref
+        nxt = next_occurrence(anchor, bill.get("frequency", "monthly"), floor, strict=paid)
         if nxt and nxt <= limit:
             items.append({"id": bill["id"], "title": bill["provider"], "amount": bill["amount"], "currency": "TRY", "date": nxt.isoformat(), "days_until": (nxt - ref).days, "kind": "bill", "category": bill["bill_type"], "status": "paid" if paid and nxt == anchor else "pending"})
     for sub in active_subs(data["subscriptions"]):
@@ -194,7 +206,7 @@ def alerts(data: dict, ref: date, key: str) -> list[dict]:
     for item in upcoming_payments(data, ref, 3):
         when = "bugün" if item["days_until"] == 0 else f"{item['days_until']} gün sonra"
         verb = "yenileniyor" if item["kind"] == "subscription" else "son ödeme"
-        out.append({"id": f"due-{item['id']}", "level": "warning" if item["days_until"] <= 1 else "info", "message": f"{item['title']} — {tl(item['amount'])} {when} {verb}.", "path": "/calendar"})
+        out.append({"id": f"due-{item['id']}", "level": "warning" if item["days_until"] <= 1 else "info", "message": f"{item['title']} — {item['amount']:.2f} {item['currency']} {when} {verb}.", "path": "/calendar"})
     for usage in budget_usage(data, key):
         if usage["exceeded"]:
             out.append({"id": f"over-{usage['id']}", "level": "warning", "message": f"{usage['category']} bütçen aşıldı (%{usage['percent']:.0f}).", "path": "/budget"})
@@ -253,8 +265,7 @@ def calendar(data: dict, key: str) -> dict:
         events.append({"id": bill["id"], "date": occurrence.isoformat(), "title": bill["provider"], "amount": bill["amount"], "currency": "TRY", "kind": "bill", "category": bill["bill_type"], "status": bill.get("status", "pending") if occurrence.isoformat() == bill["due_date"] else "pending"})
     for sub in active_subs(data["subscriptions"]):
         anchor = parse(sub["renewal_date"])
-        step = "yearly" if sub.get("billing_cycle") == "yearly" else "monthly"
-        occurrence = next_occurrence(anchor, step, start) if anchor < start else anchor
+        occurrence = next_occurrence(anchor, sub_cycle(sub), start) if anchor < start else anchor
         if occurrence and start <= occurrence <= end:
             events.append({"id": sub["id"], "date": occurrence.isoformat(), "title": sub["name"], "amount": sub["price"], "currency": sub.get("currency", "TRY"), "kind": "subscription", "category": sub.get("category", "Abonelik"), "status": "active"})
     for inc in data["incomes"]:

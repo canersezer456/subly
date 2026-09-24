@@ -1,4 +1,4 @@
-const CACHE = "subly-shell-v1";
+const CACHE = "subly-shell-v2";
 const APP_SHELL = ["/", "/dashboard", "/manifest.webmanifest", "/subly-icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -13,5 +13,6 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET" || event.request.url.includes("/api/")) return;
-  event.respondWith(fetch(event.request).catch(() => caches.match(event.request).then((response) => response || caches.match("/"))));
+  if (event.request.mode !== "navigate") return;
+  event.respondWith(fetch(event.request).catch(() => caches.match("/")));
 });

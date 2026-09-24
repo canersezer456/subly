@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 from routers import account, assistant, auth, digest, finance, gaming, insights, subscriptions
 from lib.digest import scheduler_loop
+from lib import log_redaction
 
 
 ROOT_DIR = Path(__file__).parent
@@ -20,6 +21,7 @@ from lib.db import client, db, ensure_indexes
 # Startup runs before the yield, shutdown after it. Add your own setup/teardown here.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    log_redaction.install()  # uvicorn has configured its loggers by now; redact OAuth code/state in URLs
     app.state.index_task = asyncio.create_task(ensure_indexes())  # background: a big index build must not block boot
     app.state.digest_task = asyncio.create_task(scheduler_loop())  # weekly summary emails, checked every 10 min
     yield

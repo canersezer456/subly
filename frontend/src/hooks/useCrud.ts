@@ -26,5 +26,5 @@ export function useCrud<T extends { id: string }, P>(key: string, path: string, 
     onError: () => toast.error(t("crud.deleteFailed")),
   });
 
-  return { items: list.data ?? [], isLoading: list.isLoading, create, update, remove, refresh };
+  return { items: list.isError ? [] : list.data ?? [], isLoading: list.isLoading, isError: list.isError, retry: list.refetch, create, update, remove, refresh };
 }

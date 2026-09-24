@@ -10,8 +10,49 @@ import os
 # Router-level unit tests import lib.db, which reads MONGO_URL/DB_NAME at import time.
 # Those tests swap in fake collections, and Motor never connects on construction, so a
 # deliberately unreachable placeholder is enough — no real MongoDB is ever contacted.
-os.environ.setdefault("MONGO_URL", "mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=100")
-os.environ.setdefault("DB_NAME", "subly_unit_tests")
+os.environ["MONGO_URL"] = "mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=100"
+os.environ["DB_NAME"] = "subly_unit_tests"
+os.environ["PYTHON_DOTENV_DISABLED"] = "1"
+
+# Never import Motor or connect to an existing application's database in tests.
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+from isolated_store import install
+isolated_db = install()
+
+# Legacy HTTP suites require a separately provisioned disposable server. Their
+# default target must never be a developer's already-running application.
+import socket
+import threading
+import time
+import atexit
+import uvicorn
+from isolated_store import create_app
+
+# Reserve our own socket: never reuse a pre-existing localhost service.
+_test_socket = socket.socket()
+_test_socket.bind(("127.0.0.1", 0))
+_test_server = uvicorn.Server(uvicorn.Config(create_app(), log_level="error", access_log=False))
+_test_thread = threading.Thread(target=lambda: _test_server.run(sockets=[_test_socket]), daemon=True)
+_test_thread.start()
+for _ in range(100):
+    if _test_server.started:
+        break
+    time.sleep(0.02)
+else:
+    raise RuntimeError("Disposable test server failed to start")
+_test_url = f"http://127.0.0.1:{_test_socket.getsockname()[1]}"
+os.environ["BACKEND_URL"] = _test_url
+os.environ["REACT_APP_BACKEND_URL"] = _test_url
+
+
+def _stop_test_server():
+    _test_server.should_exit = True
+    _test_thread.join(timeout=5)
+
+
+atexit.register(_stop_test_server)
 
 import httpx
 import pytest
